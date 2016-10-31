@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Snapscreen basic usage</title>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <meta name="HandheldFriendly" content="true">
+    <meta name="mobile-web-app-capable"/>
+    <meta name="format-detection" content="telephone=yes">
+    <script src="js/snapscreen-sdk.js"></script>
+    <link rel="stylesheet" type="text/css" href="css/snapscreen-sdk.css"/>
+    <script>
+        function loaded() {
+            var tokenIds = location.href.indexOf('#');
+            if (tokenIds == -1) {
+                document.write('No token specified!');
+            } else {
+                SnapscreenKit
+                        .accessTokenHolder
+                        .accessToken(location.href.substr(tokenIds));
+                SnapscreenKit
+                        .snapViewController()
+                        .createSnapButton()
+                        .appendTo(document.getElementById('site'));
+            }
+        }
+    </script>
+</head>
+<body onload="loaded()">
+<div id="site">
+    A pure JS demo.
+</div>
+</body>
+</html>
