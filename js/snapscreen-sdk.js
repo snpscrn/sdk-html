@@ -4,29 +4,33 @@
     };
 
     var templates = {
-        camera: '<video id="snapscreen:{suffix}:video" width="100%" height="100%" autoplay></video>' +
+        camera: '<div class="tv-search-camera"><video id="snapscreen:{suffix}:video" width="100%" height="100%" autoplay></video>' +
         '<div class="tv-search-frame"></div>' +
         '<button id="snapscreen:{suffix}:snap" class="tv-search-button">' +
-        '<i class="icon-camera icon"></i></button>',
-        file: '<input id="snapscreen:{suffix}:file" class="tv-search-input" type="file" accept="image/*;capture=camera"/>' +
+        '<i class="icon-camera icon"></i></button></div>',
+        file: '<div class="tv-search-file"><input id="snapscreen:{suffix}:file" class="tv-search-input" type="file" accept="image/*;capture=camera"/>' +
         '<label id="snapscreen:{suffix}:label" class="tv-search-label" for="snapscreen:{suffix}:file">' +
-        '<div><i class="icon-camera icon"></i><span>Click to access your camera!</span></div></label>',
+        '<div><i class="icon-camera icon"></i><span>Click to access your camera!</span></div></label></div>',
         button: '<input id="snapscreen:{suffix}:file" class="tv-search-input" type="file" accept="image/*;capture=camera"/>' +
         '<label id="snapscreen:{suffix}:label" class="tv-search-button" for="snapscreen:{suffix}:file">' +
         '<i class="icon-camera icon"></i>' +
         '</label>',
-        modal: '<div class="tv-search"><div id="snapscreen:{suffix}:site" class="content">' +
+        modal: '<div id="snapscreen:{suffix}:site" class="content">' +
         '<a id="snapscreen:{suffix}:close" class="close"></a>' +
-        '</div></div>',
-        tutorial: '<img class="tutorial-logo logo" src="images/snapscreen_logo_typo.svg" alt="Snapscreen Logo"/>' +
+        '</div>',
+        tutorial: '<div class="dialog dialog--open">' +
+        '<div class="dialog__overlay"></div>' +
+        '<div class="dialog__content">' +
         '<input id="snapscreen:{suffix}:file" class="tv-search-input" type="file" accept="image/*;capture=camera"/>' +
-        '<div id="snapscreen:{suffix}:label" for="snapscreen:{suffix}:file" class="tutorial-label">' +
+        '<label id="snapscreen:{suffix}:label" for="snapscreen:{suffix}:file" class="tutorial-label">' +
         '<div class="tutorial-content">' +
-        '<h3 class="tutorial-title">Snap your TV-screen and wait for the magic.</h3>' +
+        '<h3 class="tutorial-title">Zoom and focus on your TV-screen.</h3>' +
         '<div class="tutorial-picto"><img src="images/tutorial.png" alt=""/></div>' +
+        '<button class="button button-cta" data-dialog-close="">Get started</button>' +
         '</div>' +
-        '</div></label>'
-
+        '</label>' +
+        '</div>' +
+        '</div>'
     };
 
     var accessToken;
@@ -35,7 +39,7 @@
 
     var timeLag;
 
-    var baseUrl = '';
+    var baseUrl = 'https://api-dev.snapscreen.com';
 
     var apiCallQueue = [];
 
@@ -118,49 +122,49 @@
         return loggingHandler;
     }
 
-    function logFatal(message) {
+    function logFatal() {
         if (arguments.length === 0) {
             return typeof loggingHandler.logFatal === 'function';
         }
-        loggingHandler.logFatal(message);
+        loggingHandler.logFatal.apply(loggingHandler, arguments);
     }
 
-    function logError(message) {
+    function logError() {
         if (arguments.length === 0) {
             return typeof loggingHandler.logError === 'function';
         }
-        loggingHandler.logError(message);
+        loggingHandler.logError.apply(loggingHandler, arguments);
     }
 
-    function logWarn(message) {
+    function logWarn() {
         if (arguments.length === 0) {
             return typeof loggingHandler.logWarn === 'function';
         }
-        loggingHandler.logWarn(message);
+        loggingHandler.logWarn.apply(loggingHandler, arguments);
     }
 
-    function logInfo(message) {
+    function logInfo() {
         if (arguments.length === 0) {
             return typeof loggingHandler.logInfo === 'function';
         }
-        loggingHandler.logInfo(message);
+        loggingHandler.logInfo.apply(loggingHandler, arguments);
     }
 
-    function logDebug(message) {
+    function logDebug() {
         if (arguments.length === 0) {
             return typeof loggingHandler.logDebug === 'function';
         }
-        loggingHandler.logDebug(message);
+        loggingHandler.logDebug.apply(loggingHandler, arguments);
     }
 
-    function logVerbose(message) {
+    function logVerbose() {
         if (arguments.length === 0) {
             return typeof loggingHandler.logVerbose === 'function';
         }
-        loggingHandler.logVerbose(message);
+        loggingHandler.logVerbose.apply(loggingHandler, arguments);
     }
 
-    function http(request, result, error) {
+    function http(request, result, error, onUploadProgress) {
         var xhr = new XMLHttpRequest();
         if (request.responseType) {
             try {
@@ -207,6 +211,9 @@
 
         xhr.onerror = onError;
         xhr.onabort = onError;
+        if (xhr.upload && typeof onUploadProgress === 'function') {
+            xhr.upload.onprogress = onUploadProgress;
+        }
 
         var paramsString;
         if ('params' in request) {
@@ -217,8 +224,8 @@
             paramsString = paramComponents.join('&');
         }
         var body = request.data;
-        var url = baseUrl + request.url;
-        if (typeof body === 'undefined' && request.method.toUpperCase() === 'POST') {
+        var url = request.url;
+        if (typeof body === 'undefined' && request.method && request.method.toUpperCase() === 'POST') {
             body = paramsString;
         } else if (typeof paramsString !== 'undefined') {
             if (url.indexOf('?') > 0) {
@@ -246,7 +253,7 @@
         });
     }
 
-    function api(request, result, error) {
+    function api(request, result, error, onUploadProgress) {
         if (typeof accessToken === 'undefined') {
             throw new Error("No access token is set");
         }
@@ -273,13 +280,14 @@
             }
             request.headers = request.headers || {};
             request.headers['Authorization'] = 'Bearer ' + accessToken['access_token'];
+            request.url = baseUrl + request.url;
             http(request, function (response) {
                 timeLag = new Date().getTime() - Date.parse(response.xhr.getResponseHeader('Date'));
                 if (logDebug()) {
                     logDebug("Update time lag interval to " + timeLag);
                 }
                 result(response);
-            }, error);
+            }, error, onUploadProgress);
         }
     }
 
@@ -288,46 +296,27 @@
             var resultData;
             if (typeof response.data._embedded !== 'undefined') {
                 resultData = response.data._embedded.webSearchResultList.map(itemMapper);
+            } else {
+                resultData = [];
             }
-            var pageSize;
-            var pageNumber;
-            var totalElements;
-            if (typeof response.data.pageInfo !== 'undefined') {
-                pageSize = response.data.pageInfo.pageSize;
-                pageNumber = response.data.pageInfo.pageNumber;
-                totalElements = response.data.pageInfo.totalElements;
-            }
-            result(resultData, pageNumber, pageSize, totalElements);
+            result({content: resultData, pageInfo: response.data.page});
         }
     }
 
-    function mapWebSearchBasicData(webSearchItem) {
+    function mapWebSearchItem(webSearchItem) {
         return {
             type: webSearchItem.resourceType,
             uuid: webSearchItem.uuid,
             requestUUID: webSearchItem.requestUUID,
-            visitURL: webSearchItem._links.visit
+            visitUrl: webSearchItem._links.visit.href,
+            title: webSearchItem.title,
+            description: webSearchItem.description,
+            url: webSearchItem.url
         }
     }
 
-    function mapWebSearchWebsiteItem(webSearchItem) {
-        var result = mapWebSearchBasicData(webSearchItem);
-        result.resultTitle = webSearchItem.title;
-        result.resultDescriptiom = webSearchItem.description;
-        result.url = webSearchItem.url;
-        result.thumbnailURL = webSearchItem.thumbnailURL;
-        result.thumbnailSize = {
-            width: webSearchItem.thumbnailWidth,
-            height: webSearchItem.thumbnailHeight
-        };
-        return result;
-    }
-
     function mapWebSearchImageItem(webSearchItem) {
-        var result = mapWebSearchBasicData(webSearchItem);
-        result.resultTitle = webSearchItem.title;
-        result.resultDescriptiom = webSearchItem.description;
-        result.url = webSearchItem.url;
+        var result = mapWebSearchItem(webSearchItem);
         result.thumbnailUrl = webSearchItem.thumbnailUrl;
         result.thumbnailSize = {
             width: webSearchItem.thumbnailWidth,
@@ -342,10 +331,8 @@
     }
 
     function mapWebSearchVideoItem(webSearchItem) {
-        var result = mapWebSearchBasicData(webSearchItem);
-        result.resultTitle = webSearchItem.title;
-        result.resultDescriptiom = webSearchItem.description;
-        result.url = webSearchItem.url;
+        var result = mapWebSearchItem(webSearchItem);
+        result.duration = webSearchItem.duration;
         result.thumbnailUrl = webSearchItem.thumbnailUrl;
         result.thumbnailSize = {
             width: webSearchItem.thumbnailWidth,
@@ -376,28 +363,38 @@
         return new Date().getTime() - timeLag;
     }
 
-    function SnapscreenSnapViewController(componentNavigator, componentDelegate) {
+    function SnapscreenSnapViewController(searchRequestBuilder, componentNavigator, componentDelegate) {
         var self = this;
 
         var snapComponent = document.createElement("div");
+        snapComponent.setAttribute('class', 'snapscreen');
 
         var video;
+
+        var checkCameraTimeout;
 
         var currentStream;
 
         var snapComponentTemplate;
 
-        var firstUsage = true; //TODO storage
+        var storage;
+        if (typeof(Storage) !== 'undefined') {
+            storage = localStorage;
+        } else {
+            storage = {snapscreenTvSearchVisited: true};
+        }
 
         var blocked = false;
 
-        var uiBlocker;
+        var errorMessage = new AutoHideMessage();
 
-        var message = new AutoHideMessage();
+        var feedbackMessage = new FeedbackMessage();
 
         var uiNavigator = componentNavigator || new DefaultNavigationBehavior();
 
-        replaceBlocker(null);
+        var uiBlocker;
+
+        replaceBlocker();
 
         function replaceBlocker(newBlocker) {
             blocked && newBlocker && newBlocker.block();
@@ -463,7 +460,7 @@
 
         function DefaultNavigationBehavior() {
             var modal = document.createElement('div');
-            modal.setAttribute('class', 'modal');
+            modal.setAttribute('class', 'snapscreen-modal');
 
             var modalTemplate = loadTemplate('modal', modal);
 
@@ -472,7 +469,7 @@
                 document.body.removeChild(modal);
             }
 
-            this.navigateToTvSearchResults = function (viewController, results) {
+            this.navigateToResults = function (viewController, results) {
                 viewController.dispose();
                 document.body.removeChild(modal);
             };
@@ -503,11 +500,41 @@
                     messageElement.textContent = message;
                     snapComponent.appendChild(messageElement);
                 }
-                messageTimeout = setTimeout(function () {
-                    snapComponent.removeChild(messageElement);
-                    messageElement = null;
+                messageTimeout = setTimeout(this.hide, SHOW_MESSAGE_TIMEOUT);
+            };
+
+            this.hide = function () {
+                if (messageTimeout) {
+                    clearTimeout(messageTimeout);
                     messageTimeout = null;
-                }, SHOW_MESSAGE_TIMEOUT);
+                }
+                if (messageElement && messageElement.parentNode) {
+                    messageElement.parentNode.removeChild(messageElement);
+                }
+                messageElement = null;
+            }
+        }
+
+        function FeedbackMessage() {
+
+            var messageElement;
+
+            this.show = function (message) {
+                if (!messageElement) {
+                    messageElement = document.createElement('div');
+                    messageElement.setAttribute("class", "tv-search-feedback");
+                    messageElement.textContent = message;
+                    snapComponent.appendChild(messageElement);
+                } else {
+                    messageElement.textContent = message;
+                }
+            };
+
+            this.hide = function () {
+                if (messageElement && messageElement.parentNode) {
+                    messageElement.parentNode.removeChild(messageElement);
+                }
+                messageElement = null;
             }
         }
 
@@ -516,11 +543,9 @@
             var snapButton;
 
             function snapButtonClick(e) {
-                if (firstUsage) {
+                if (!storage.snapscreenTvSearchVisited || needToCheckCameraAccess()) {
                     e.preventDefault();
-                    showShortTutorial();
-                } else if (needToCheckCameraAccess()) {
-                    e.preventDefault();
+                    checkCamera();
                     uiNavigator.navigateToComponent(self);
                 }
             }
@@ -528,6 +553,7 @@
             function init() {
                 if (!snapButton) {
                     snapButton = document.createElement('div');
+                    snapButton.setAttribute('class', 'snapscreen');
                     var snapButtonTemplate = loadTemplate('button', snapButton);
                     snapButtonTemplate('file').addEventListener('change', fileChanged);
                     snapButtonTemplate('label').addEventListener('click', snapButtonClick);
@@ -536,7 +562,7 @@
 
             function appendTo(target) {
                 init();
-                target.append(snapButton);
+                (target.append || target.appendChild).call(target, snapButton);
             }
 
             function dispose() {
@@ -558,38 +584,30 @@
         }
 
         function showShortTutorial() {
-            var modal = document.createElement('div');
-            modal.setAttribute('class', 'modal');
             var tutorial = document.createElement('div');
-            tutorial.setAttribute('class', 'tutorial-content');
 
             function close() {
-                document.body.removeChild(modal);
+                snapComponent.removeChild(tutorial);
             }
 
             function onTutorialFileChanged(e) {
                 close();
                 fileChanged(e);
-                uiNavigator.navigateToComponent(self);
             }
 
             function onTutorialSnapClick(e) {
-                firstUsage = false;//TODO use storage
+                storage.snapscreenTvSearchVisited = true;
                 if (needToCheckCameraAccess()) {
                     e.preventDefault();
                     close();
-                    uiNavigator.navigateToComponent(self);
+                    checkCamera();
                 }
             }
-
-            var modalTemplate = loadTemplate('modal', modal);
-            modalTemplate('site').appendChild(tutorial);
-            modalTemplate('close').addEventListener('click', close);
 
             var tutorialTemplate = loadTemplate('tutorial', tutorial);
             tutorialTemplate('file').addEventListener('change', onTutorialFileChanged);
             tutorialTemplate('label').addEventListener('click', onTutorialSnapClick);
-            document.body.appendChild(modal);
+            snapComponent.appendChild(tutorial);
         }
 
         function getExifOrientation(arrayBuffer) {
@@ -614,10 +632,10 @@
             if (!exifMetaFound) {
                 return 0;
             }
-            seekPosition += 4;//skip length definitions
+            seekPosition += 4; //skip length definitions
             var i;
             for (i = 0; i < 4; i++) {
-                if ("Exif".charCodeAt(i) !== byteBuffer.getUint8(seekPosition + i)) {
+                if ("Exif".charCodeAt(i) != byteBuffer.getUint8(seekPosition + i)) {
                     if (logWarn()) {
                         logWarn("Not valid Exif data");
                     }
@@ -653,7 +671,7 @@
             seekPosition += 2;
             for (i = 0; i < tagCount; i++) {
                 var entryPosition = seekPosition + i * 12;
-                if (byteBuffer.getUint16(entryPosition, littleEndian) == 0x0112) {//Orientation
+                if (byteBuffer.getUint16(entryPosition, littleEndian) == 0x0112) { //Orientation
                     if (logDebug()) {
                         logDebug("orientation found");
                     }
@@ -664,7 +682,7 @@
                         }
                         return byteBuffer.getUint16(entryPosition + 8, littleEndian);
                     }
-                    if (tagValueType == 4) {//LONG
+                    if (tagValueType == 4) {// LONG
                         if (logDebug()) {
                             logDebug("orientation LONG value found");
                         }
@@ -690,7 +708,7 @@
                     preferredHeight = parseInt(SNAP_MAX_WIDTH * preferredHeight / preferredWidth);
                     preferredWidth = SNAP_MAX_WIDTH;
                 }
-                var dataCanvas = document.createElement('canvas');
+                var dataCanvas = window.document.createElement('canvas');
                 dataCanvas.width = preferredWidth;
                 dataCanvas.height = preferredHeight;
                 var ctx = dataCanvas.getContext('2d');
@@ -726,15 +744,40 @@
                     ctx.drawImage(source, 0, 0, sourceWidth, sourceHeight, 0, 0, preferredHeight, preferredWidth);
                 }
                 var mimeType = 'image/jpeg';
-                //TODO generate blob if no "toBlob"
-                dataCanvas.toBlob(function (imageBlob) {
+                if (typeof dataCanvas.toBlob === 'function' ) {
+                    dataCanvas.toBlob(function (imageBlob) {
+                        resolve({
+                            blob: imageBlob,
+                            mimeType: mimeType,
+                            width: preferredWidth,
+                            height: preferredHeight
+                        });
+                    }, mimeType, 0.9);
+                } else {
+                    var dataURL = dataCanvas.toDataURL(mimeType, 0.9);
+                    var dataUrlParts = dataURL.match(/^data:(.*?)(;charset=.*?)?(;base64)?,/);
+                    if (!dataUrlParts) {
+                        throw new Error('Invalid data URI format');
+                    }
+                    var dataString = dataURL.slice(dataUrlParts[0].length);
+                    var byteString;
+                    if (dataUrlParts[3]) {
+                        byteString = atob(dataString)
+                    } else {
+                        byteString = decodeURIComponent(dataString)
+                    }
+                    var arrayBuffer = new ArrayBuffer(byteString.length);
+                    var intArray = new Uint8Array(arrayBuffer);
+                    for (var i = 0; i < byteString.length; i += 1) {
+                        intArray[i] = byteString.charCodeAt(i)
+                    }
                     resolve({
-                        blob: imageBlob,
+                        blob: arrayBuffer,
                         mimeType: mimeType,
                         width: preferredWidth,
                         height: preferredHeight
                     });
-                }, mimeType, 0.9);
+                }
             } catch (e) {
                 reject(e);
             }
@@ -759,10 +802,14 @@
             }
         }
 
-        function checkCamera(result, reject) {
+        function checkCamera() {
+            if (checkCameraTimeout) {
+                return;
+            }
+            checkCameraTimeout = setTimeout(20000, onStreamBlocked);
             var getUserMediaFunction = detectGetUserMediaFunction();
             if (typeof getUserMediaFunction !== 'function') {
-                reject();
+                onStreamBlocked();
             } else if (typeof MediaStreamTrack !== 'undefined' && typeof MediaStreamTrack.getSources == 'function') {
                 MediaStreamTrack.getSources(function (sources) {
                     var backCamera;
@@ -772,55 +819,66 @@
                         }
                     });
                     if (backCamera) {
-                        var constraints = {
+                        getUserMediaFunction({
                             audio: false,
                             video: {
                                 mandatory: {
                                     sourceId: backCamera.id
                                 }
                             }
-                        };
-                        getUserMediaFunction(constraints, result, reject);
+                        }, onStreamReady, onStreamBlocked);
                     } else {
-                        reject();
+                        onStreamBlocked();
                     }
                 });
             } else {
-                getUserMediaFunction(constraints, result, reject);
+                getUserMediaFunction({audio: false, video: {facingMode: {ideal: "environment"}}},
+                    onStreamReady, onStreamBlocked);
             }
         }
 
-        function onTvSearchResultResponse(response) {
+        function onSearchResult(response) {
             uiBlocker.unblock();
+            feedbackMessage.hide();
             if (typeof response.data.resultEntries === 'undefined') {
                 if (logError()) {
                     logError("Invalid response");
                 }
                 uiNavigator.navigateToComponent(self);
-                message.show(self.messages.failWithError);
-                delegateEvent('onTvSearchError', response.data);
+                errorMessage.show(self.messages.failWithError);
+                delegateEvent('onError', response.data);
                 return;
             }
             if (response.data.resultEntries.length) {
                 if (logInfo()) {
-                    logInfo("Received TV search results " + response.data.resultEntries.length);
+                    logInfo("Received results count " + response.data.resultEntries.length);
                 }
-                delegateEvent('onTvSearchResult', response.data);
-                uiNavigator.navigateToTvSearchResults(self, response.data);
+                if (logVerbose()) {
+                    logVerbose(response.data);
+                }
+                delegateEvent('onResult', response.data);
+                uiNavigator.navigateToResults(self, response.data);
             } else {
-                message.show(self.messages.noResults);
-                delegateEvent('onTvSearchNoResult', response.data);
+                errorMessage.show(self.messages.noResults);
+                delegateEvent('onNoResult', response.data);
                 uiNavigator.navigateToComponent(self);
             }
         }
 
-        function onTvSearchFailed(error) {
+        function onSearchFailed(error) {
             if (logError()) {
-                logError("Failed to make search by the image. Error details: " + error);
+                logError("Failed to make search by the image.", error);
             }
-            message.show(self.messages.failWithError);
+            feedbackMessage.hide();
+            errorMessage.show(self.messages.failWithError);
             uiBlocker.unblock();
-            delegate.onTvSearchError(error);
+            delegateEvent('onError', error);
+        }
+
+        function onSearchUploadProgress(event) {
+            if (event.loaded == event.total) {
+                feedbackMessage.show(self.messages.waitingResult);
+            }
         }
 
         function snap() {
@@ -852,7 +910,6 @@
                     }
                     window.URL.revokeObjectURL(img.src);
                 };
-                img.src = window.URL.createObjectURL(event.target.files[0]);
                 var fileReader = new FileReader();
                 var file = event.target.files[0];
                 fileReader.onload = function (e) {
@@ -862,38 +919,34 @@
                     exifOrientation = getExifOrientation(e.target.result);
                     img.src = window.URL.createObjectURL(file);
                 };
+                fileReader.onerror = onDataError;
                 fileReader.readAsArrayBuffer(file);
             }
         }
 
         function onDataReady(blobMetadata) {
-            var tvSearchRequest = {
-                method: 'POST',
-                url: '/api/tv-search/by-image',
-                headers: {
-                    'Content-type': 'application/octet-stream',
-                    'X-Snapscreen-MimeType': blobMetadata.mimeType,
-                    'X-Snapscreen-Width': blobMetadata.width,
-                    'X-Snapscreen-Height': blobMetadata.height
-                },
-                data: blobMetadata.blob
-            };
-            api(tvSearchRequest, onTvSearchResultResponse, onTvSearchFailed);
+            errorMessage.hide();
+            feedbackMessage.show(self.messages.uploadingImage);
+            api(searchRequestBuilder(blobMetadata), onSearchResult, onSearchFailed, onSearchUploadProgress);
         }
 
         function onDataError(error) {
             if (logError()) {
                 logError("Failed to prepare image data to send. Error details: " + error);
             }
-            message.show(self.messages.photoError);
+            feedbackMessage.hide();
+            errorMessage.show(self.messages.photoError);
             uiBlocker.unblock();
-            delegate.onTvSearchError(error);
+            delegateEvent('onError', error);
         }
 
         function onStreamReady(stream) {
+            if (checkCameraTimeout) {
+                clearTimeout(checkCameraTimeout);
+            }
+            checkCameraTimeout = null;
             snapComponentTemplate = loadTemplate('camera', snapComponent);
             snapComponentTemplate('snap').addEventListener('click', snap);
-            snapComponent.setAttribute('class', 'tv-search-camera');
             uiBlocker = new CameraUiBlocker();
             currentStream = stream;
             video = snapComponentTemplate('video');
@@ -904,6 +957,10 @@
         }
 
         function onStreamBlocked(reason) {
+            if (checkCameraTimeout) {
+                clearTimeout(checkCameraTimeout);
+            }
+            checkCameraTimeout = null;
             if (logInfo()) {
                 logInfo("Camera blocked with reason " + reason);
             }
@@ -912,17 +969,17 @@
 
         function switchFileMode() {
             disposeStream();
-            snapComponent.setAttribute('class', 'tv-search-file');
             snapComponentTemplate = loadTemplate('file', snapComponent);
             snapComponentTemplate('file').addEventListener('change', fileChanged);
             replaceBlocker(new FileUiBlocker());
         }
 
         function prepareView() {
-            if (firstUsage) {
-                showShortTutorial();
+            if (storage.snapscreenTvSearchVisited) {
+                checkCamera();
             } else {
-                checkCamera(onStreamReady, onStreamBlocked)
+                switchFileMode();
+                showShortTutorial();
             }
         }
 
@@ -941,11 +998,11 @@
         }
 
         function isUsed() {
-            return snapComponent.parentNode && snapComponent.document;
+            return snapComponent.parentNode !== null;
         }
 
         function appendTo(target) {
-            target.append(snapComponent);
+            (target.append || target.appendChild).call(target, snapComponent);
             prepareView();
         }
 
@@ -959,22 +1016,52 @@
         this.isUsed = isUsed;
         this.appendTo = appendTo;
         this.dispose = dispose;
+
         this.createSnapButton = function createSnapButton() {
             return new SnapButton();
         };
-
         this.messages = {
             photoError: 'Some error happens while preparing photo to send.' +
             ' Please retry searching with different image.',
             failWithError: 'Some error happens while searching a TV.' +
             ' Please retry searching with different image.',
             noResults: 'We’re sorry, your Snap returned no results -' +
-            ' either the channel you are watching is not supported or a TV screen could not be detected.'
+            ' either the channel you are watching is not supported or a TV screen could not be detected.',
+            uploadingImage: 'Uploading image...',
+            waitingResult: 'Getting results...'
         }
     }
 
-    function createSnapscreenSnapViewController(componentNavigator, delegate) {
-        return new SnapscreenSnapViewController(componentNavigator, delegate);
+    function createSnapscreenTvSnapViewController(componentNavigator, delegate) {
+        return new SnapscreenSnapViewController(function (blobMetadata) {
+            return {
+                method: 'POST',
+                url: '/api/tv-search/by-image',
+                headers: {
+                    'Content-type': 'application/octet-stream',
+                    'X-Snapscreen-MimeType': blobMetadata.mimeType,
+                    'X-Snapscreen-Width': blobMetadata.width,
+                    'X-Snapscreen-Height': blobMetadata.height
+                },
+                data: blobMetadata.blob
+            };
+        }, componentNavigator, delegate);
+    }
+
+    function createSnapscreenAdsSnapViewController(componentNavigator, delegate) {
+        return new SnapscreenSnapViewController(function (blobMetadata) {
+            return {
+                method: 'POST',
+                url: '/api/ads/search/by-image',
+                headers: {
+                    'Content-type': 'application/octet-stream',
+                    'X-Snapscreen-MimeType': blobMetadata.mimeType,
+                    'X-Snapscreen-Width': blobMetadata.width,
+                    'X-Snapscreen-Height': blobMetadata.height
+                },
+                data: blobMetadata.blob
+            };
+        }, componentNavigator, delegate);
     }
 
     /**
@@ -983,10 +1070,12 @@
      * @module SnapscreenKit
      */
     scope.SnapscreenKit = {
+        http: http,
         api: api,
-        snapViewController: createSnapscreenSnapViewController,
+        tvSnapViewController: createSnapscreenTvSnapViewController,
+        adsSnapViewController: createSnapscreenAdsSnapViewController,
         webSearchService: {
-            searchSites: apiWebSearch('web', mapWebSearchWebsiteItem),
+            searchSites: apiWebSearch('web', mapWebSearchItem),
             searchImages: apiWebSearch('image', mapWebSearchImageItem),
             searchVideos: apiWebSearch('video', mapWebSearchVideoItem)
         },
