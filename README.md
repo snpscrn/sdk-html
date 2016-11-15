@@ -42,7 +42,7 @@ SnapscreenKit.http({
 The first step in initialization of TV search is to create corresponding controller and specify callback functions 
 to which results will be provided:
 ```javascript
-var tvSnapController = SnapscreenKit.tvSnapViewController(null, {
+var tvSnapController = SnapscreenKit.tvSnapViewController({
     onResult: function (result) {
         //TODO: handle snap results here.
     }
@@ -84,7 +84,7 @@ Results of TV search will be provided in the following format:
 Process of initialization of SDK for advertisement search is the same as for TV search, but you need to call
 a different function:
 ```javascript
-var snapController = SnapscreenKit.adsSnapViewController(null, {
+var snapController = SnapscreenKit.adsSnapViewController({
     onResult: function (result) {
         //TODO: handle snap results here.
     }
