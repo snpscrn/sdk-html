@@ -30,7 +30,8 @@
         '</div>' +
         '</label>' +
         '</div>' +
-        '</div>'
+        '</div>',
+        waiting: '<div class="tv-search-feedback">Getting access to the camera...</div>'
     };
 
     var accessToken;
@@ -189,6 +190,9 @@
                 status = 204
             }
             if (status >= 200 && status < 300) {
+                if (request.responseType === 'json' && typeof response === 'string') {
+                    response = JSON.parse(response);
+                }
                 result({
                     xhr: xhr,
                     headers: getResponseHeader,
@@ -363,7 +367,7 @@
         return new Date().getTime() - timeLag;
     }
 
-    function SnapscreenSnapViewController(searchRequestBuilder, componentNavigator, componentDelegate) {
+    function SnapscreenSnapViewController(searchRequestBuilder, options) {
         var self = this;
 
         var snapComponent = document.createElement("div");
@@ -390,7 +394,7 @@
 
         var feedbackMessage = new FeedbackMessage();
 
-        var uiNavigator = componentNavigator || new DefaultNavigationBehavior();
+        var uiNavigator = options.navigator || new DefaultNavigationBehavior();
 
         var uiBlocker;
 
@@ -411,8 +415,8 @@
         }
 
         function delegateEvent(event, data) {
-            if (componentDelegate && typeof componentDelegate[event] === 'function') {
-                componentDelegate[event].call(componentDelegate, data);
+            if (options && typeof options[event] === 'function') {
+                options[event].call(options, data);
             }
         }
 
@@ -545,7 +549,9 @@
             function snapButtonClick(e) {
                 if (!storage.snapscreenTvSearchVisited || needToCheckCameraAccess()) {
                     e.preventDefault();
-                    checkCamera();
+                    if (storage.snapscreenTvSearchVisited) {
+                        checkCamera();//needed for browsers which are support access to the camera via gesture only.
+                    }
                     uiNavigator.navigateToComponent(self);
                 }
             }
@@ -682,7 +688,7 @@
                         }
                         return byteBuffer.getUint16(entryPosition + 8, littleEndian);
                     }
-                    if (tagValueType == 4) {// LONG
+                    if (tagValueType == 4) {//LONG
                         if (logDebug()) {
                             logDebug("orientation LONG value found");
                         }
@@ -744,7 +750,7 @@
                     ctx.drawImage(source, 0, 0, sourceWidth, sourceHeight, 0, 0, preferredHeight, preferredWidth);
                 }
                 var mimeType = 'image/jpeg';
-                if (typeof dataCanvas.toBlob === 'function' ) {
+                if (typeof dataCanvas.toBlob === 'function') {
                     dataCanvas.toBlob(function (imageBlob) {
                         resolve({
                             blob: imageBlob,
@@ -761,7 +767,7 @@
                     }
                     var dataString = dataURL.slice(dataUrlParts[0].length);
                     var byteString;
-                    if (dataUrlParts[3]) {
+                    if (dataUrlParts[3]) { //has ";base64" part
                         byteString = atob(dataString)
                     } else {
                         byteString = decodeURIComponent(dataString)
@@ -788,7 +794,8 @@
         }
 
         function detectGetUserMediaFunction() {
-            if (typeof navigator.mediaDevices !== 'undefined' && typeof navigator.mediaDevices.getUserMedia == 'function') {
+            if (typeof navigator.mediaDevices !== 'undefined' &&
+                typeof navigator.mediaDevices.getUserMedia === 'function') {
                 return function (constraints, result, reject) {
                     navigator.mediaDevices.getUserMedia(constraints).then(result, reject)
                 };
@@ -806,7 +813,8 @@
             if (checkCameraTimeout) {
                 return;
             }
-            checkCameraTimeout = setTimeout(20000, onStreamBlocked);
+            waitingForCamera();
+            checkCameraTimeout = setTimeout(onStreamBlocked, 20000);
             var getUserMediaFunction = detectGetUserMediaFunction();
             if (typeof getUserMediaFunction !== 'function') {
                 onStreamBlocked();
@@ -835,6 +843,10 @@
                 getUserMediaFunction({audio: false, video: {facingMode: {ideal: "environment"}}},
                     onStreamReady, onStreamBlocked);
             }
+        }
+
+        function waitingForCamera() {
+            loadTemplate('waiting', snapComponent);
         }
 
         function onSearchResult(response) {
@@ -932,7 +944,7 @@
 
         function onDataError(error) {
             if (logError()) {
-                logError("Failed to prepare image data to send. Error details: " + error);
+                logError("Failed to prepare image data to send.", error);
             }
             feedbackMessage.hide();
             errorMessage.show(self.messages.photoError);
@@ -1032,7 +1044,7 @@
         }
     }
 
-    function createSnapscreenTvSnapViewController(componentNavigator, delegate) {
+    function createSnapscreenTvSnapViewController(options) {
         return new SnapscreenSnapViewController(function (blobMetadata) {
             return {
                 method: 'POST',
@@ -1045,10 +1057,10 @@
                 },
                 data: blobMetadata.blob
             };
-        }, componentNavigator, delegate);
+        }, options);
     }
 
-    function createSnapscreenAdsSnapViewController(componentNavigator, delegate) {
+    function createSnapscreenAdsSnapViewController(options) {
         return new SnapscreenSnapViewController(function (blobMetadata) {
             return {
                 method: 'POST',
@@ -1061,7 +1073,7 @@
                 },
                 data: blobMetadata.blob
             };
-        }, componentNavigator, delegate);
+        }, options);
     }
 
     /**
