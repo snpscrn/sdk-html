@@ -370,6 +370,8 @@
     function SnapscreenSnapViewController(searchRequestBuilder, options) {
         var self = this;
 
+        options = options || {};
+
         var snapComponent = document.createElement("div");
         snapComponent.setAttribute('class', 'snapscreen');
 
