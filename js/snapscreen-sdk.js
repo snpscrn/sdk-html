@@ -547,12 +547,12 @@
             var snapButton;
 
             function snapButtonClick(e) {
-                if (!storage.snapscreenTvSearchVisited || needToCheckCameraAccess()) {
+                if (needToShowTutorial() || needToCheckCameraAccess()) {
                     e.preventDefault();
-                    if (storage.snapscreenTvSearchVisited) {
-                        checkCamera();//needed for browsers which are support access to the camera via gesture only.
-                    }
                     uiNavigator.navigateToComponent(self);
+                }
+                if (!needToShowTutorial() && needToCheckCameraAccess()) {
+                    checkCamera();//needed for browsers which are support access to the camera via gesture only.
                 }
             }
 
@@ -789,8 +789,12 @@
             }
         }
 
+        function needToShowTutorial() {
+            return !options.withoutTutorial && !storage.snapscreenTvSearchVisited;
+        }
+
         function needToCheckCameraAccess() {
-            return typeof detectGetUserMediaFunction() === 'function';
+            return window.location.protocol === 'https:' && typeof detectGetUserMediaFunction() === 'function';
         }
 
         function detectGetUserMediaFunction() {
@@ -987,11 +991,11 @@
         }
 
         function prepareView() {
-            if (storage.snapscreenTvSearchVisited) {
-                checkCamera();
-            } else {
+            if (needToShowTutorial()) {
                 switchFileMode();
                 showShortTutorial();
+            } else {
+                checkCamera();
             }
         }
 
