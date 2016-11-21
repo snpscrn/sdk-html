@@ -1,3 +1,8 @@
+/**
+ * @file snapscreen-sdk.css
+ * @brief a style sheet required to correctly present UI components of the Snapscreen SDK.
+ * @copyright 2016 Snapscreen. All rights reserved.
+ */
 @-webkit-keyframes anim-open {
     0% {
         opacity: 0;

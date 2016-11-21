@@ -1,3 +1,8 @@
+/**
+ * @file snapscreen-sdk.js
+ * @brief a tool kit which provide an easy way to use Snpascreen's API.
+ * @copyright 2016 Snapscreen. All rights reserved.
+ */
 (function (scope) {
     var refreshTokenCallback = function (callback) {
         throw new Error("Token is expired but refreshTokenCallback is not configured");
