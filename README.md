@@ -26,9 +26,10 @@ Once we are ready with access token management resource we can implement access 
 For this we need to request access token from your server and set it into SDK like this:
 ```javascript
 SnapscreenKit.http({
-    url: 'https://yoursite.com/accesstoken' 
+    url: 'https://yoursite.com/accesstoken',
+    responseType: 'json'
 }, function onResult(response) {
-    if (response.satus == 200) {
+    if (response.satus < 400) {
         SnapscreenKit.accessTokenHolder.accessToken(response.data);
     } else {
        // log an error
@@ -51,7 +52,7 @@ var tvSnapController = SnapscreenKit.tvSnapViewController({
 Now it is required to place a snap button somewhere on you HTML page which will trigger snapping process. Lets assume 
 that you have an element on your page with id "main" then you can use the following code to add button to this element:
 ```javascript
-tvSnapController.createButton().appendTo(document.getElementById('main'));
+tvSnapController.createSnapButton().appendTo(document.getElementById('main'));
 ```
 Results of TV search will be provided in the following format:
 ```javascript
@@ -89,7 +90,7 @@ var snapController = SnapscreenKit.adsSnapViewController({
         //TODO: handle snap results here.
     }
 });
-snapController.createButton().appendTo(divElement);
+snapController.createSnapButton().appendTo(document.getElementById('main'));
 ```
 Results of TV search will be provided in the following format:
 ```javascript

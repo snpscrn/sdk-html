@@ -281,6 +281,7 @@
                     if (logFatal()) {
                         logFatal("Failed to refresh access token.");
                     }
+                    error(e);
                 }
             }
         } else {
@@ -289,7 +290,9 @@
             }
             request.headers = request.headers || {};
             request.headers['Authorization'] = 'Bearer ' + accessToken['access_token'];
-            request.url = baseUrl + request.url;
+            if (!request.absolute) {
+                request.url = baseUrl + request.url;
+            }
             http(request, function (response) {
                 timeLag = new Date().getTime() - Date.parse(response.xhr.getResponseHeader('Date'));
                 if (logDebug()) {
@@ -313,7 +316,7 @@
     }
 
     function mapWebSearchItem(webSearchItem) {
-        return {
+        var result = {
             type: webSearchItem.resourceType,
             uuid: webSearchItem.uuid,
             requestUUID: webSearchItem.requestUUID,
@@ -321,16 +324,21 @@
             title: webSearchItem.title,
             description: webSearchItem.description,
             url: webSearchItem.url
+        };
+        if (webSearchItem.thumbnailUrl) {
+            result.thumbnailUrl = webSearchItem.thumbnailUrl;
+            if (webSearchItem.thumbnailWidth && webSearchItem.thumbnailHeight) {
+                result.thumbnailSize = {
+                    width: webSearchItem.thumbnailWidth,
+                    height: webSearchItem.thumbnailHeight
+                };
+            }
         }
+        return result;
     }
 
     function mapWebSearchImageItem(webSearchItem) {
         var result = mapWebSearchItem(webSearchItem);
-        result.thumbnailUrl = webSearchItem.thumbnailUrl;
-        result.thumbnailSize = {
-            width: webSearchItem.thumbnailWidth,
-            height: webSearchItem.thumbnailHeight
-        };
         result.sourceUrl = webSearchItem.sourceUrl;
         result.size = {
             width: webSearchItem.width,
@@ -342,29 +350,47 @@
     function mapWebSearchVideoItem(webSearchItem) {
         var result = mapWebSearchItem(webSearchItem);
         result.duration = webSearchItem.duration;
-        result.thumbnailUrl = webSearchItem.thumbnailUrl;
-        result.thumbnailSize = {
-            width: webSearchItem.thumbnailWidth,
-            height: webSearchItem.thumbnailHeight
-        };
         return result;
-
     }
 
-    function apiWebSearch(resourceType, itemMapper) {
-        return function apiWebSearch(term, locale, tvChannelCode, timestampRef, pageNumber, pageSize, result, error) {
-            return api({
-                url: '/api/web-search/' + resourceType,
-                method: "GET",
-                params: {
-                    term: term,
-                    locale: locale,
-                    tvChannelCode: tvChannelCode,
-                    timestampRef: timestampRef,
-                    page: pageNumber,
-                    size: pageSize
-                }
-            }, normalizeWebSearchResult(result, itemMapper), error);
+    function buildWebSearchRequest(tvChannelCode, timestampRef, pageNumber, pageSize) {
+        var request = {
+            tvChannelCode: tvChannelCode,
+            timestampRef: timestampRef,
+            page: pageNumber,
+            size: pageSize
+        };
+        if (countryCode) {
+            request.countryCode = countryCode;
+        }
+        return request;
+    }
+
+    function buildWebSearchRequestWithCreditName(tvChannelCode, timestampRef, creditName, pageNumber, pageSize) {
+        var request = buildWebSearchRequest(tvChannelCode, timestampRef, pageNumber, pageSize);
+        request.creditName = creditName;
+        return request;
+    }
+
+    function internalApiWebSearch(resourceType, itemMapper, request, result, error) {
+        return api({
+            url: '/api/web-search/' + resourceType,
+            method: "GET",
+            params: request
+        }, normalizeWebSearchResult(result, itemMapper), error);
+    }
+
+    function buildApiWebSearch(resourceType, itemMapper) {
+        return function (tvChannelCode, timestampRef, pageNumber, pageSize, result, error) {
+            var request = buildWebSearchRequest(tvChannelCode, timestampRef, pageNumber, pageSize);
+            return internalApiWebSearch(resourceType, itemMapper, request, result, error);
+        }
+    }
+
+    function buildApiWebSearchByCreditName(resourceType, itemMapper) {
+        return function (tvChannelCode, timestampRef, creditName, pageNumber, pageSize, result, error) {
+            var request = buildWebSearchRequestWithCreditName(tvChannelCode, timestampRef, creditName, pageNumber, pageSize);
+            return internalApiWebSearch(resourceType, itemMapper, request, result, error);
         }
     }
 
@@ -833,23 +859,34 @@
                 MediaStreamTrack.getSources(function (sources) {
                     var backCamera;
                     sources.forEach(function (source) {
-                        if ((source.kind == "video") && (!backCamera || source.facing == "environment")) {
+                        if ((source.kind == "video") && (source.facing == "environment")) {
                             backCamera = source;
                         }
                     });
                     if (backCamera) {
-                        getUserMediaFunction({
-                            audio: false,
-                            video: {
-                                mandatory: {
-                                    sourceId: backCamera.id
-                                }
-                            }
-                        }, onStreamReady, onStreamBlocked);
+                        getUserMediaFunction({audio: false, video: {mandatory: {sourceId: backCamera.id}}},
+                            onStreamReady, onStreamBlocked);
                     } else {
-                        onStreamBlocked();
+                        getUserMediaFunction({audio: false, video: {facingMode: {ideal: "environment"}}},
+                            onStreamReady, onStreamBlocked);
                     }
                 });
+            } else if (navigator && navigator.mediaDevices && typeof navigator.mediaDevices.enumerateDevices == 'function') {
+                navigator.mediaDevices.enumerateDevices().then(function (devices) {
+                    var backCamera;
+                    devices.forEach(function (device) {
+                        if ((device.kind == "videoinput") && (device.label.endsWith("facing back"))) {
+                            backCamera = device;
+                        }
+                    });
+                    if (backCamera) {
+                        getUserMediaFunction({audio: false, video: {mandatory: {sourceId: backCamera.deviceId}}},
+                            onStreamReady, onStreamBlocked);
+                    } else {
+                        getUserMediaFunction({audio: false, video: {facingMode: {ideal: "environment"}}},
+                            onStreamReady, onStreamBlocked);
+                    }
+                }).catch(onStreamBlocked);
             } else {
                 getUserMediaFunction({audio: false, video: {facingMode: {ideal: "environment"}}},
                     onStreamReady, onStreamBlocked);
@@ -1055,17 +1092,25 @@
         }
     }
 
+    function snapHttpHeaders(blobMetadata) {
+        var headers = {
+            'Content-type': 'application/octet-stream',
+            'X-Snapscreen-MimeType': blobMetadata.mimeType,
+            'X-Snapscreen-Width': blobMetadata.width,
+            'X-Snapscreen-Height': blobMetadata.height
+        };
+        if (countryCode) {
+            headers['X-Snapscreen-CountryCode'] = countryCode;
+        }
+        return headers;
+    }
+
     function createSnapscreenTvSnapViewController(options) {
         return new SnapscreenSnapViewController(function (blobMetadata) {
             return {
                 method: 'POST',
                 url: '/api/tv-search/by-image',
-                headers: {
-                    'Content-type': 'application/octet-stream',
-                    'X-Snapscreen-MimeType': blobMetadata.mimeType,
-                    'X-Snapscreen-Width': blobMetadata.width,
-                    'X-Snapscreen-Height': blobMetadata.height
-                },
+                headers: snapHttpHeaders(blobMetadata),
                 data: blobMetadata.blob
             };
         }, options);
@@ -1076,12 +1121,7 @@
             return {
                 method: 'POST',
                 url: '/api/ads/search/by-image',
-                headers: {
-                    'Content-type': 'application/octet-stream',
-                    'X-Snapscreen-MimeType': blobMetadata.mimeType,
-                    'X-Snapscreen-Width': blobMetadata.width,
-                    'X-Snapscreen-Height': blobMetadata.height
-                },
+                headers: snapHttpHeaders(blobMetadata),
                 data: blobMetadata.blob
             };
         }, options);
@@ -1098,9 +1138,12 @@
         tvSnapViewController: createSnapscreenTvSnapViewController,
         adsSnapViewController: createSnapscreenAdsSnapViewController,
         webSearchService: {
-            searchSites: apiWebSearch('web', mapWebSearchItem),
-            searchImages: apiWebSearch('image', mapWebSearchImageItem),
-            searchVideos: apiWebSearch('video', mapWebSearchVideoItem)
+            searchSites: buildApiWebSearch('web', mapWebSearchItem),
+            searchImages: buildApiWebSearch('image', mapWebSearchImageItem),
+            searchVideos: buildApiWebSearch('video', mapWebSearchVideoItem),
+            searchSitesByCreditName: buildApiWebSearchByCreditName('web', mapWebSearchItem),
+            searchImagesByCreditName: buildApiWebSearchByCreditName('image', mapWebSearchImageItem),
+            searchVideosByCreditName: buildApiWebSearchByCreditName('video', mapWebSearchVideoItem)
         },
         accessTokenHolder: {
             accessToken: setAndGetAccessToken,
