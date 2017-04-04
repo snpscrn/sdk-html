@@ -486,7 +486,7 @@
                     if (idx > 0) {
                         var from = idx;
                         var to = idx + BLOCK_STYLE_NAME.length;
-                        if (idx - 1 > 0 && cssClass.charAt(idx - 1) == ' ') {
+                        if (idx - 1 > 0 && cssClass.charAt(idx - 1) === ' ') {
                             from--;
                         }
                         label.setAttribute('class', cssClass.substr(0, from) + cssClass.substr(to));
@@ -605,7 +605,7 @@
             }
 
             function dispose() {
-                if (snapButton != null && snapButton.parentNode) {
+                if (snapButton !== null && snapButton.parentNode) {
                     snapButton.parentNode.removeChild(snapButton);
                 }
             }
@@ -651,7 +651,7 @@
 
         function getExifOrientation(arrayBuffer) {
             var byteBuffer = new DataView(arrayBuffer);
-            if (byteBuffer.getUint16(0) != 0xFFD8) {
+            if (byteBuffer.getUint16(0) !== 0xFFD8) {
                 if (logDebug()) {
                     logDebug("Not a JPEG");
                 }
@@ -662,7 +662,7 @@
             var exifMetaFound = false;
             while (seekPosition < fileLength) {
                 var metaTagLength = byteBuffer.getUint16(seekPosition + 2);
-                if (byteBuffer.getUint16(seekPosition) == 0xFFE1) {
+                if (byteBuffer.getUint16(seekPosition) === 0xFFE1) {
                     exifMetaFound = true;
                     break;
                 }
@@ -674,7 +674,7 @@
             seekPosition += 4; //skip length definitions
             var i;
             for (i = 0; i < 4; i++) {
-                if ("Exif".charCodeAt(i) != byteBuffer.getUint8(seekPosition + i)) {
+                if ("Exif".charCodeAt(i) !== byteBuffer.getUint8(seekPosition + i)) {
                     if (logWarn()) {
                         logWarn("Not valid Exif data");
                     }
@@ -684,9 +684,9 @@
             seekPosition += 6;//skip Exif string and 0x0000
             var littleEndian;
             var endianType = byteBuffer.getUint16(seekPosition);
-            if (endianType == 0x4949) {//II
+            if (endianType === 0x4949) {//II
                 littleEndian = true;
-            } else if (endianType == 0x4D4D) {//MM
+            } else if (endianType === 0x4D4D) {//MM
                 littleEndian = false;
             } else {
                 if (logWarn()) {
@@ -710,18 +710,18 @@
             seekPosition += 2;
             for (i = 0; i < tagCount; i++) {
                 var entryPosition = seekPosition + i * 12;
-                if (byteBuffer.getUint16(entryPosition, littleEndian) == 0x0112) { //Orientation
+                if (byteBuffer.getUint16(entryPosition, littleEndian) === 0x0112) { //Orientation
                     if (logDebug()) {
                         logDebug("orientation found");
                     }
                     var tagValueType = byteBuffer.getUint16(entryPosition + 2, littleEndian);
-                    if (tagValueType == 3) {//SHORT
+                    if (tagValueType === 3) {//SHORT
                         if (logDebug()) {
                             logDebug("orientation SHORT value found");
                         }
                         return byteBuffer.getUint16(entryPosition + 8, littleEndian);
                     }
-                    if (tagValueType == 4) {//LONG
+                    if (tagValueType === 4) {//LONG
                         if (logDebug()) {
                             logDebug("orientation LONG value found");
                         }
@@ -837,10 +837,16 @@
                     navigator.mediaDevices.getUserMedia(constraints).then(result, reject)
                 };
             } else {
-                var callie = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.webkitGetUserMedia;
-                if (typeof callie === 'function') {
-                    return function (constraints, result, reject) {
-                        callie.call(navigator, result, reject);
+                var getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
+                if (typeof getUserMedia === 'function') {
+                    if (getUserMedia.length && getUserMedia.length === 3) {
+                        return function (constraints, result, reject) {
+                            getUserMedia.call(navigator, constraints, result, reject);
+                        }
+                    } else {
+                        return function (constraints, result, reject) {
+                            getUserMedia.call(navigator, result, reject);
+                        }
                     }
                 }
             }
@@ -855,11 +861,11 @@
             var getUserMediaFunction = detectGetUserMediaFunction();
             if (typeof getUserMediaFunction !== 'function') {
                 onStreamBlocked();
-            } else if (typeof MediaStreamTrack !== 'undefined' && typeof MediaStreamTrack.getSources == 'function') {
+            } else if (typeof MediaStreamTrack !== 'undefined' && typeof MediaStreamTrack.getSources === 'function') {
                 MediaStreamTrack.getSources(function (sources) {
                     var backCamera;
                     sources.forEach(function (source) {
-                        if ((source.kind == "video") && (source.facing == "environment")) {
+                        if ((source.kind === "video") && (source.facing === "environment")) {
                             backCamera = source;
                         }
                     });
@@ -871,11 +877,11 @@
                             onStreamReady, onStreamBlocked);
                     }
                 });
-            } else if (navigator && navigator.mediaDevices && typeof navigator.mediaDevices.enumerateDevices == 'function') {
+            } else if (navigator && navigator.mediaDevices && typeof navigator.mediaDevices.enumerateDevices === 'function') {
                 navigator.mediaDevices.enumerateDevices().then(function (devices) {
                     var backCamera;
                     devices.forEach(function (device) {
-                        if ((device.kind == "videoinput") && (device.label.endsWith("facing back"))) {
+                        if ((device.kind === "videoinput") && (device.label.endsWith("facing back"))) {
                             backCamera = device;
                         }
                     });
@@ -936,7 +942,7 @@
         }
 
         function onSearchUploadProgress(event) {
-            if (event.loaded == event.total) {
+            if (event.loaded === event.total) {
                 feedbackMessage.show(self.messages.waitingResult);
             }
         }
@@ -1045,9 +1051,13 @@
 
         function disposeStream() {
             if (currentStream) {
-                var tracks = currentStream.getTracks();
-                for (var i = 0; i < tracks.length; i++) {
-                    tracks[i].stop();
+                if (currentStream.getTracks && typeof currentStream.getTracks === 'function') {
+                    var tracks = currentStream.getTracks();
+                    for (var i = 0; i < tracks.length; i++) {
+                        tracks[i].stop();
+                    }
+                } else if (currentStream.stop && typeof currentStream.stop === 'function') {
+                    currentStream.stop();
                 }
                 window.URL.revokeObjectURL(video.src);
                 video.removeAttribute("src");
@@ -1109,7 +1119,7 @@
         return new SnapscreenSnapViewController(function (blobMetadata) {
             return {
                 method: 'POST',
-                url: '/api/tv-search/by-image',
+                url: '/api/tv-search/epg/by-image',
                 headers: snapHttpHeaders(blobMetadata),
                 data: blobMetadata.blob
             };
@@ -1127,6 +1137,17 @@
         }, options);
     }
 
+    function createSnapscreenSportSnapViewController(options) {
+        return new SnapscreenSnapViewController(function (blobMetadata) {
+            return {
+                method: 'POST',
+                url: '/api/tv-search/sport/by-image',
+                headers: snapHttpHeaders(blobMetadata),
+                data: blobMetadata.blob
+            };
+        }, options);
+    }
+
     /**
      * Snapscreen SDK module.
      *
@@ -1136,6 +1157,7 @@
         http: http,
         api: api,
         tvSnapViewController: createSnapscreenTvSnapViewController,
+        sportSnapViewController: createSnapscreenSportSnapViewController,
         adsSnapViewController: createSnapscreenAdsSnapViewController,
         webSearchService: {
             searchSites: buildApiWebSearch('web', mapWebSearchItem),

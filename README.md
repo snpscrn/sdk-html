@@ -74,13 +74,72 @@ Results of TV search will be provided in the following format:
            }
          }
        },
-       timestampRef: number (long)
-       score: number (double),
+       timestampRef: number (long),
+       score: number (double)
      },
    ]
  }
 ```
-
+### Sport event search setup
+Process of initialization of SDK for sport event search is the same as for TV search, but you need to call
+a different function:
+```javascript
+var sportSnapController = SnapscreenKit.sportSnapViewController({
+    onResult: function (result) {
+        //TODO: handle snap results here.
+    }
+});
+sportSnapController.createSnapButton().appendTo(document.getElementById('main'));
+```
+Results of sport event search will be provided in the following format:
+```javascript
+ {
+   requestUuid: string (UUID),
+   resultEntries: [
+     {
+       tvChannel: {
+         id: number, // long
+         code: string,
+         name: string,
+         homepage: string, // URL
+         _links: {
+           self: {
+             href: string // URL
+           },
+           logo: {
+             href: string // URL
+           },
+           poster: {
+             href: string // URL
+           }
+         }
+       },
+       sportEvent: {
+         id: number, // long
+         externalId: string,
+         tvChannelId: number, // long
+         startTime: string, // iso date-time: yyyy-MM-dd'T'HH:mm:ss.SSSZZ
+         endTime: string, // iso date-time: yyyy-MM-dd'T'HH:mm:ss.SSSZZ
+         sport: string,
+         tournament: string,
+         category: string,
+         competitors: [
+           {
+             name: string
+           }
+         ],
+         _links: {
+           self: {
+             href: string // URL
+           }
+         }
+       },
+       timestampRef: number (long),
+       score: number (double)
+     },
+   ]
+ }
+```
 ### Advertisements search setup
 Process of initialization of SDK for advertisement search is the same as for TV search, but you need to call
 a different function:
@@ -92,7 +151,7 @@ var snapController = SnapscreenKit.adsSnapViewController({
 });
 snapController.createSnapButton().appendTo(document.getElementById('main'));
 ```
-Results of TV search will be provided in the following format:
+Results of advertisement search will be provided in the following format:
 ```javascript
  {
    requestUuid: string (UUID),
