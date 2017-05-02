@@ -142,7 +142,7 @@
     box-sizing: border-box;
     font-family: inherit;
     font-size: 100%;
-    padding: 16px calc(16px * 2);
+    padding: 16px 32px;
     color: #333;
     color: rgba(0, 0, 0, 0.8);
     border: 1px solid transparent;
@@ -224,7 +224,7 @@
     width: calc(100% - 16px * 6);
     max-width: calc(100% - 16px * 6);
     background-color: #3468af;
-    padding: calc(16px * 2);
+    padding: 32px;
     text-align: center;
     position: relative;
     z-index: 800;
@@ -236,7 +236,7 @@
     /* stops bg color from leaking outside the border: */
 }
 
-.snapscreen .icon-camera {
+.snapscreen .icon-camera, .snapscreen .icon-refresh {
     font-family: "simple-line-icons";
     speak: none;
     font-style: normal;
@@ -251,6 +251,10 @@
 
 .snapscreen .icon-camera:before {
     content: "\e07f";
+}
+
+.snapscreen .icon-refresh:before {
+    content: "\e098";
 }
 
 .snapscreen-modal {
@@ -305,7 +309,7 @@
     opacity: 0.3;
     width: 180px;
     margin: 0 auto;
-    top: calc(16px * 2);
+    top: 32px;
     left: 50%;
     -webkit-transform: translateX(-50%);
     -moz-transform: translateX(-50%);
@@ -316,13 +320,13 @@
 
 @media only screen and (min-width: 600px) {
     .snapscreen .tutorial-logo {
-        top: calc(50px / 2);
+        top: 25px;
     }
 }
 
 @media only screen and (min-width: 768px) {
     .snapscreen .tutorial-logo {
-        top: calc(50px * 1);
+        top: 50px;
     }
 }
 
@@ -416,12 +420,12 @@
 
 .snapscreen .tv-search-file .tv-search-error {
     bottom: 6%;
-    left: 0%;
-    right: 0%;
+    left: 0;
+    right: 0;
     margin: 0 auto;
 }
 
-.snapscreen .tv-search-button {
+.snapscreen .tv-search-button, .snapscreen .switch-camera-button {
     z-index: 401;
     overflow: hidden;
     width: 60px;
@@ -436,9 +440,9 @@
     bottom: 16px;
     right: 16px;
     cursor: pointer;
-    -webkit-box-shadow: 0px 2px 5px rgba(51, 51, 51, 0.6);
-    -moz-box-shadow: 0px 2px 5px rgba(51, 51, 51, 0.6);
-    box-shadow: 0px 2px 5px rgba(51, 51, 51, 0.6);
+    -webkit-box-shadow: 0 2px 5px rgba(51, 51, 51, 0.6);
+    -moz-box-shadow: 0 2px 5px rgba(51, 51, 51, 0.6);
+    box-shadow: 0 2px 5px rgba(51, 51, 51, 0.6);
 }
 
 .snapscreen .tv-search-button:disabled {
@@ -449,7 +453,11 @@
     display: none;
 }
 
-.snapscreen .tv-search-button i {
+.snapscreen .switch-camera-button:disabled {
+    background-color: #6b6b6b;
+}
+
+.snapscreen .tv-search-button i, .snapscreen .switch-camera-button i {
     color: #ffffff;
     position: absolute;
     top: 0;
@@ -464,7 +472,7 @@
     font-size: 24px;
 }
 
-.snapscreen .tv-search-button:after {
+.snapscreen .tv-search-button:after, .snapscreen .switch-camera-button:after {
     content: "";
     background: rgba(255, 255, 255, 0.3);
     display: block;
@@ -596,7 +604,7 @@
 }
 
 .snapscreen .tv-search-camera .tv-search-button {
-    bottom: calc(16px * 1);
+    bottom: 16px;
     left: 50%;
     -webkit-transform: translateX(-50%);
     -moz-transform: translateX(-50%);
@@ -604,4 +612,91 @@
     -o-transform: translateX(-50%);
     transform: translateX(-50%);
     z-index: 3;
+}
+
+.snapscreen .tv-search-camera .switch-camera-button {
+    bottom: 16px;
+    left: 75%;
+    -webkit-transform: translateX(-50%);
+    -moz-transform: translateX(-50%);
+    -ms-transform: translateX(-50%);
+    -o-transform: translateX(-50%);
+    transform: translateX(-50%);
+    z-index: 3;
+}
+
+.snapscreen .zoom-slider {
+    z-index: 3;
+    left: 15%;
+    width: 70%;
+    height: 30px;
+    bottom: 90px;
+    display: block;
+    position: fixed;
+}
+
+.snapscreen .zoom-slider:before, .snapscreen .zoom-slider:after {
+    color: white;
+    display: block;
+    position: absolute;
+    speak: none;
+    line-height: 1;
+    font-size: 30px;
+    font-style: normal;
+    font-weight: normal;
+    font-variant: normal;
+    text-transform: none;
+    font-family: "simple-line-icons";
+}
+
+.snapscreen .zoom-slider:before {
+    content: "\e615";
+    left: -40px;
+}
+
+.snapscreen .zoom-slider:after {
+    content: "\e095";
+    right: -40px;
+}
+
+.snapscreen .zoom-slider hr {
+    border: 0;
+    margin: 0;
+    padding: 0;
+    height: 2px;
+    display: block;
+    background: white;
+    transform: translateY(14px);
+}
+
+.snapscreen .zoom-slider .zoom-pointer {
+    overflow: hidden;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 3px solid white;
+    -webkit-border-radius: 50%;
+    background-color: #3d76c5;
+    background-clip: padding-box;
+    background-origin: padding-box;
+    cursor: pointer;
+    position: absolute;
+    z-index: 4;
+    transform: translateY(5px);
+}
+
+@media only screen and (max-width: 768px) and (orientation: landscape) {
+    .snapscreen .zoom-slider {
+        left: 20%;
+        width: 60%;
+        bottom: 4px;
+    }
+    .snapscreen .tv-search-camera .tv-search-button {
+        bottom: calc(50% - 55px);
+        left: calc(100% - 55px);
+    }
+    .snapscreen .tv-search-camera .switch-camera-button {
+        bottom: calc(75% - 55px);
+        left: calc(100% - 55px);
+    }
 }
