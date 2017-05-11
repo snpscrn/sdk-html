@@ -47,7 +47,7 @@
 
     var timeLag = 0;
 
-    var baseUrl = 'https://api-dev.snapscreen.com';
+    var baseUrl = 'https://api.snapscreen.com';
 
     var apiCallQueue = [];
 
