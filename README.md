@@ -44,7 +44,7 @@ The first step in initialization of TV search is to create corresponding control
 to which results will be provided:
 ```javascript
 var tvSnapController = SnapscreenKit.tvSnapViewController({
-    onResult: function (result) {
+    onResultEntry: function (resultEntry) {
         //TODO: handle snap results here.
     }
 });
@@ -57,27 +57,22 @@ tvSnapController.createSnapButton().appendTo(document.getElementById('main'));
 Results of TV search will be provided in the following format:
 ```javascript
  {
-   requestUuid: string (UUID),
-   resultEntries: [
-     {
-       tvChannel: {
-         id: number (long),
-         code: string,
-         name: string,
-         homepage: string (url),
-         _links: {
-           self: {
-             href: string (url)
-           },
-           logo: {
-             href: string (url)
-           }
-         }
+   tvChannel: {
+     id: number (long),
+     code: string,
+     name: string,
+     homepage: string (url),
+     _links: {
+       self: {
+         href: string (url)
        },
-       timestampRef: number (long),
-       score: number (double)
-     },
-   ]
+       logo: {
+         href: string (url)
+       }
+     }
+   },
+   timestampRef: number (long),
+   score: number (double)
  }
 ```
 ### Sport event search setup
@@ -85,7 +80,7 @@ Process of initialization of SDK for sport event search is the same as for TV se
 a different function:
 ```javascript
 var sportSnapController = SnapscreenKit.sportSnapViewController({
-    onResult: function (result) {
+    onResultEntry: function (resultEntry) {
         //TODO: handle snap results here.
     }
 });
@@ -94,50 +89,45 @@ sportSnapController.createSnapButton().appendTo(document.getElementById('main'))
 Results of sport event search will be provided in the following format:
 ```javascript
  {
-   requestUuid: string (UUID),
-   resultEntries: [
-     {
-       tvChannel: {
-         id: number, // long
-         code: string,
-         name: string,
-         homepage: string, // URL
-         _links: {
-           self: {
-             href: string // URL
-           },
-           logo: {
-             href: string // URL
-           },
-           poster: {
-             href: string // URL
-           }
-         }
+   tvChannel: {
+     id: number, // long
+     code: string,
+     name: string,
+     homepage: string, // URL
+     _links: {
+       self: {
+         href: string // URL
        },
-       sportEvent: {
-         id: number, // long
-         externalId: string,
-         tvChannelId: number, // long
-         startTime: string, // iso date-time: yyyy-MM-dd'T'HH:mm:ss.SSSZZ
-         endTime: string, // iso date-time: yyyy-MM-dd'T'HH:mm:ss.SSSZZ
-         sport: string,
-         tournament: string,
-         category: string,
-         competitors: [
-           {
-             name: string
-           }
-         ],
-         _links: {
-           self: {
-             href: string // URL
-           }
-         }
+       logo: {
+         href: string // URL
        },
-       timestampRef: number (long),
-       score: number (double)
-     },
-   ]
+       poster: {
+         href: string // URL
+       }
+     }
+   },
+   sportEvent: {
+     id: number, // long
+     externalId: string,
+     tvChannelId: number, // long
+     startTime: string, // iso date-time: yyyy-MM-dd'T'HH:mm:ss.SSSZZ
+     endTime: string, // iso date-time: yyyy-MM-dd'T'HH:mm:ss.SSSZZ
+     sport: string,
+     tournament: string,
+     category: string,
+     competitors: [
+       {
+         name: string
+       }
+     ],
+     _links: {
+       self: {
+         href: string // URL
+       }
+     }
+   },
+   timestampRef: number (long),
+   score: number (double)
  }
 ```
 ### Advertisements search setup
@@ -145,7 +135,7 @@ Process of initialization of SDK for advertisement search is the same as for TV 
 a different function:
 ```javascript
 var snapController = SnapscreenKit.adsSnapViewController({
-    onResult: function (result) {
+    onResultEntry: function (resultEntry) {
         //TODO: handle snap results here.
     }
 });
@@ -154,19 +144,14 @@ snapController.createSnapButton().appendTo(document.getElementById('main'));
 Results of advertisement search will be provided in the following format:
 ```javascript
  {
-   requestUuid: string (UUID),
-   resultEntries: [
-     {
-       advertisement: {
-         id: number (long),
-         title: string,
-         description: string,
-         landingPageUrl: string,
-         duration: number (long)
-       },
-       timestampRef: number (long)
-       score: number (double),
-     }
-   ]
+   advertisement: {
+     id: number (long),
+     title: string,
+     description: string,
+     landingPageUrl: string,
+     duration: number (long)
+   },
+   timestampRef: number (long),
+   score: number (double)
  }
 ```

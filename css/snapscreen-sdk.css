@@ -279,6 +279,7 @@
     height: 24px;
     opacity: 0.3;
     z-index: 1;
+    cursor: pointer;
 }
 
 .snapscreen-modal .close:hover,
@@ -303,6 +304,15 @@
 
 .snapscreen-modal .close:after {
     transform: rotate(-45deg);
+}
+
+.snapscreen-modal.snapscreen-results {
+    background-color: #f5f5f5;
+}
+
+.snapscreen-modal.snapscreen-results .close:before,
+.snapscreen-modal.snapscreen-results .close:after {
+    background-color: black;
 }
 
 .snapscreen .tutorial-logo {
@@ -596,6 +606,125 @@
     content: '';
 }
 
+.snapscreen .collection.with-header .collection-header {
+    text-align: left;
+    font-size: 0.8em;
+}
+
+.snapscreen .collection {
+    height: 100vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    position: relative;
+
+}
+
+.snapscreen .collection .collection-item {
+    margin: 0;
+    padding: 16px;
+    position: relative;
+    text-align: left;
+    text-decoration: none;
+    background-color: #ffffff;
+    border-bottom: 1px solid #f5f5f5;
+}
+
+.snapscreen .collection .collection-item.with-margin {
+    margin: calc(16px / 2) 0;
+}
+
+.snapscreen .collection .collection-item.media {
+    min-height: 67px;
+    position: relative;
+}
+
+.snapscreen .collection .collection-item.media.advertisement {
+    height: 67px;
+    overflow: hidden;
+}
+
+.snapscreen .collection .collection-item.media figure {
+    width: 11em;
+    position: absolute;
+    top: 0;
+    height: 100%;
+    overflow: hidden;
+}
+
+.snapscreen .collection .collection-item.media figure img {
+    border: 0;
+    outline: 0;
+    height: auto;
+    max-width: 100%;
+}
+
+.snapscreen .collection .collection-item.media.right {
+    padding-right: calc(11em + 16px);
+}
+
+.snapscreen .collection .collection-item.media.right figure {
+    right: 0;
+}
+
+.snapscreen .collection .collection-item figure {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    font: inherit;
+    font-size: 100%;
+    background: none;
+    vertical-align: baseline;
+}
+
+.snapscreen .collection .collection-item:last-child {
+    border-bottom: none;
+}
+
+.snapscreen .collection a.collection-item {
+    display: block;
+    transition: .25s;
+}
+
+.snapscreen .collection.with-header .collection-header {
+    padding: 16px;
+    background-color: #f5f5f5;
+    color: gray;
+}
+
+.snapscreen .collection .collection-item figure.preloader {
+    background: url("../images/preloader.gif") whitesmoke no-repeat center;
+}
+
+.snapscreen .channel-logo img {
+    height: 16px;
+    margin-bottom: 2px;
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    -ms-box-sizing: border-box;
+    -o-box-sizing: border-box;
+    box-sizing: border-box;
+}
+
+.snapscreen a .title, .snapscreen a .meta, .snapscreen a .small {
+    color: #333;
+}
+
+.snapscreen .meta.schedule {
+    margin: calc(16px / 2) 0 0 0;
+}
+
+.snapscreen .meta {
+    overflow: hidden;
+    font-size: 0.8em;
+    margin: calc(16px / 2) 0;
+}
+
+.snapscreen .small {
+    margin: 0;
+    font-size: 0.8em;
+    line-height: 1.5;
+}
+
 @media screen and (min-width: 568px) {
     .snapscreen .tv-search-frame {
         width: 56%;
@@ -671,6 +800,7 @@
 
 .snapscreen .zoom-slider .zoom-pointer {
     overflow: hidden;
+    left: 0;
     width: 14px;
     height: 14px;
     border-radius: 50%;

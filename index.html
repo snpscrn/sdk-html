@@ -12,23 +12,16 @@
     <script>
         function loaded() {
             var tokenIds = location.href.indexOf('#');
-            if (tokenIds == -1) {
+            if (tokenIds === -1) {
                 document.write('No token specified!');
             } else {
-                SnapscreenKit
-                        .accessTokenHolder
-                        .accessToken(location.href.substr(tokenIds));
-                SnapscreenKit
-                        .snapViewController()
-                        .createSnapButton()
-                        .appendTo(document.getElementById('site'));
+                SnapscreenKit.accessTokenHolder.accessToken(location.href.substr(tokenIds));
+                SnapscreenKit.tvSnapViewController().createSnapButton().appendTo(document.getElementById('site'));
             }
         }
     </script>
 </head>
 <body onload="loaded()">
-<div id="site">
-    A pure JS demo.
-</div>
+<div id="site">A pure JS demo.</div>
 </body>
 </html>
