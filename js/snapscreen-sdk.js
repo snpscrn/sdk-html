@@ -21,6 +21,20 @@
         return target;
     }
 
+    function merge(left, right){
+        var result = [], il = 0, ir = 0;
+
+        while (il < left.length && ir < right.length){
+            if (left[il].score > right[ir].score){
+                result.push(left[il++]);
+            } else {
+                result.push(right[ir++]);
+            }
+        }
+
+        return result.concat(left.slice(il)).concat(right.slice(ir));
+    }
+
     function loggerFactory() {
         var handler = {
             logFatal: function logError(message) {
@@ -402,12 +416,12 @@
     }
 
     function snapServiceFactory(logger, snapscreen) {
-        function snapHttpHeaders(blobMetadata) {
+        function snapHttpHeaders(request) {
             var headers = {
                 "Content-type": 'application/octet-stream',
-                "X-Snapscreen-MimeType": blobMetadata.mimeType,
-                "X-Snapscreen-Width": blobMetadata.width,
-                "X-Snapscreen-Height": blobMetadata.height
+                "X-Snapscreen-MimeType": request.mimeType,
+                "X-Snapscreen-Width": request.width,
+                "X-Snapscreen-Height": request.height
             };
             if (snapscreen.countryCode()) {
                 headers['X-Snapscreen-CountryCode'] = snapscreen.countryCode();
@@ -415,8 +429,16 @@
             return headers;
         }
 
-        function autoSnapHttpHeaders(blobMetadata) {
-            var headers = snapHttpHeaders(blobMetadata);
+        function snapWithAdsHttpHeaders(request) {
+            var headers = snapHttpHeaders(request);
+            if (request.searchAds) {
+                headers['X-Snapscreen-SearchAds'] = 'true';
+            }
+            return headers;
+        }
+
+        function autoSnapHttpHeaders(request) {
+            var headers = snapHttpHeaders(request);
             headers['X-Snapscreen-Timestamp'] = snapscreen.currentTimestamp();
             return headers;
         }
@@ -427,9 +449,16 @@
                     logger.logError('Invalid response');
                     reject(response);
                 } else {
-                    logger.logInfo('Received results count ' + response.data.resultEntries.length);
-                    logger.logVerbose(response.data);
-                    resolve(response.data);
+                    var results = response.data;
+                    if (results.adEntries && results.adEntries.length > 0) {
+                        results = {
+                            "requestUuid": results.requestUuid,
+                            "resultEntries": merge(results.resultEntries, results.adEntries)
+                        };
+                    }
+                    logger.logInfo('Received results count ' + results.resultEntries.length);
+                    logger.logVerbose(results);
+                    resolve(results);
                 }
             };
         }
@@ -441,21 +470,12 @@
             };
         }
 
-        function snap(uri, blobMetadata, resolve, reject, onUploadProgress) {
+        function snap(uri, request, headers, resolve, reject, onUploadProgress) {
             snapscreen.api({
                 "method": 'POST',
                 "url": uri,
-                "headers": snapHttpHeaders(blobMetadata),
-                "data": blobMetadata.blob
-            }, onSearchResult(resolve, reject), onSearchFailed(reject), onUploadProgress);
-        }
-
-        function autoSnap(uri, blobMetadata, resolve, reject, onUploadProgress) {
-            snapscreen.api({
-                "method": 'POST',
-                "url": uri,
-                "headers": autoSnapHttpHeaders(blobMetadata),
-                "data": blobMetadata.blob
+                "headers": headers(request),
+                "data": request.blob
             }, onSearchResult(resolve, reject), onSearchFailed(reject), onUploadProgress);
         }
 
@@ -491,28 +511,31 @@
 
         return {
             "epg": {
-                "snap": function snapEpg(blobMetadata, resolve, reject, onUploadProgress) {
-                    snap('/api/tv-search/epg/by-image', blobMetadata, resolve, reject, onUploadProgress);
+                "snap": function snapEpg(request, resolve, reject, onUploadProgress) {
+                    snap('/api/tv-search/epg/by-image', request, snapWithAdsHttpHeaders,
+                        resolve, reject, onUploadProgress);
                 },
-                "autoSnap": function autoSnapEpg(blobMetadata, resolve, reject, onUploadProgress) {
-                    autoSnap('/api/tv-search/epg/near-timestamp/by-image', blobMetadata, resolve, reject,
-                        onUploadProgress);
+                "autoSnap": function autoSnapEpg(request, resolve, reject, onUploadProgress) {
+                    snap('/api/tv-search/epg/near-timestamp/by-image', request, autoSnapHttpHeaders,
+                        resolve, reject, onUploadProgress);
                 },
                 "storeFeedback": storeFeedback
             },
             "ads": {
-                "snap": function snapEpg(blobMetadata, resolve, reject, onUploadProgress) {
-                    snap('/api/ads/search/by-image', blobMetadata, resolve, reject, onUploadProgress);
+                "snap": function snapEpg(request, resolve, reject, onUploadProgress) {
+                    snap('/api/ads/search/by-image', request, snapHttpHeaders,
+                        resolve, reject, onUploadProgress);
                 },
                 "storeFeedback": storeFeedback
             },
             "sport": {
-                "snap": function snapEpg(blobMetadata, resolve, reject, onUploadProgress) {
-                    snap('/api/tv-search/sport/by-image', blobMetadata, resolve, reject, onUploadProgress);
+                "snap": function snapEpg(request, resolve, reject, onUploadProgress) {
+                    snap('/api/tv-search/sport/by-image', request, snapWithAdsHttpHeaders,
+                        resolve, reject, onUploadProgress);
                 },
-                "autoSnap": function autoSnapEpg(blobMetadata, resolve, reject, onUploadProgress) {
-                    autoSnap('/api/tv-search/sport/near-timestamp/by-image', blobMetadata, resolve, reject,
-                        onUploadProgress);
+                "autoSnap": function autoSnapEpg(request, resolve, reject, onUploadProgress) {
+                    snap('/api/tv-search/sport/near-timestamp/by-image', request, autoSnapHttpHeaders,
+                        resolve, reject, onUploadProgress);
                 },
                 "storeFeedback": storeFeedback
             }
@@ -874,12 +897,16 @@
 
     function SnapscreenSearchResults(snapComponent, uiNavigator, sportEventService, templateEngine,
                                      tvChannelService, tsImageService, adImageService) {
+        function numberToString(number) {
+            return number < 10 ? '0' + number.toString() : number.toString();
+        }
+
         function formatDate(date) {
             var monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September',
                 'October', 'November', 'December'];
 
-            return monthNames[date.getMonth()] + ' ' + date.getDate() + ', ' + date.getHours() + ':' +
-                date.getMinutes();
+            return monthNames[date.getMonth()] + ' ' + date.getDate() + ', ' +
+                numberToString(date.getHours()) + ':' + numberToString(date.getMinutes());
         }
 
         function showEntryImage(figure, resultEntry) {
@@ -1555,6 +1582,9 @@
         function onDataReady(blobMetadata) {
             errorMessage.hide();
             feedbackMessage.show(self.messages.uploadingImage);
+            if (options.searchAds) {
+                blobMetadata.searchAds = true;
+            }
             snapService.snap(blobMetadata, onSearchResult, onSearchFailed, onSearchUploadProgress);
         }
 
