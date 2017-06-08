@@ -1023,10 +1023,12 @@
                 storedResult = null;
             }
             modal.setAttribute('class', 'snapscreen-modal');
-            if (controller.isUsed()) {
+            if (controller.isActive()) {
                 return;
             }
-            if (typeof options.navigator !== 'undefined' &&
+            if (snapComponent.parentNode) {
+                controller.appendTo(snapComponent.parentNode);
+            } else if (typeof options.navigator !== 'undefined' &&
                 typeof options.navigator.navigateToComponent === 'function') {
                 options.navigator.navigateToComponent(controller);
             } else {
@@ -1480,8 +1482,8 @@
 
     function SnapscreenSnapViewController(logger, snapService, blobService, sportEventService, templateEngine,
                                           tvChannelService, tsImageService, adImageService, options) {
-        var self = this, snapComponent, searchResults, resultsSnapButton, videoDevices, zoom, video, viewFrame,
-            checkCameraTimeout, autoSnapTimeout, autoSnapStatus, currentStream, storage, blocked,
+        var self = this, active = false, snapComponent, searchResults, resultsSnapButton, videoDevices, zoom, video,
+            viewFrame, checkCameraTimeout, autoSnapTimeout, autoSnapStatus, currentStream, storage, blocked,
             errorMessage, feedbackMessage, uiNavigator, uiBlocker,
             SNAP_MAX_DIMENSION = 1024,
             AUTOSNAP_MAX_DIMENSION = 512,
@@ -1827,14 +1829,16 @@
             }
         }
 
-        this.isUsed = function () {
-            return snapComponent.parentNode !== null;
+        this.isActive = function () {
+            return active;
         };
         this.appendTo = function (target) {
+            active = true;
             (target.append || target.appendChild).call(target, snapComponent);
             prepareView();
         };
         this.dispose = function () {
+            active = false;
             if (snapComponent.parentNode) {
                 snapComponent.parentNode.removeChild(snapComponent);
                 snapComponent.innerHTML = '';
