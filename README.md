@@ -41,10 +41,10 @@ SnapscreenKit.http({
 ```
 ### TV search setup
 The first step in initialization of TV search is to create corresponding controller and specify callback functions 
-to which results will be provided:
+to which results will be provided with timestamp when snap was made:
 ```javascript
 var tvSnapController = SnapscreenKit.tvSnapViewController({
-    onResultEntry: function (resultEntry) {
+    onResultEntry: function (resultEntry, snapTimestamp) {
         //TODO: handle snap results here.
     }
 });
@@ -80,7 +80,7 @@ Process of initialization of SDK for sport event search is the same as for TV se
 a different function:
 ```javascript
 var sportSnapController = SnapscreenKit.sportSnapViewController({
-    onResultEntry: function (resultEntry) {
+    onResultEntry: function (resultEntry, snapTimestamp) {
         //TODO: handle snap results here.
     }
 });
@@ -135,7 +135,7 @@ Process of initialization of SDK for advertisement search is the same as for TV 
 a different function:
 ```javascript
 var snapController = SnapscreenKit.adsSnapViewController({
-    onResultEntry: function (resultEntry) {
+    onResultEntry: function (resultEntry, snapTimestamp) {
         //TODO: handle snap results here.
     }
 });

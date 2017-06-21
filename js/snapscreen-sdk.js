@@ -1010,7 +1010,7 @@
     }
 
     function DefaultNavigationBehavior(controller, snapComponent, snapService, templateEngine, options) {
-        var modal, modalTemplate, vibrate, vibrateDelegate, storedResult;
+        var modal, modalTemplate, vibrate, vibrateDelegate, storedResult, snapTimestamp;
 
         function close() {
             controller.dispose();
@@ -1039,6 +1039,7 @@
 
         this.navigateToResults = function (result) {
             storedResult = result;
+            snapTimestamp = result.snapTimestamp;
             var parent = snapComponent.parentNode;
             controller.dispose();
             if (typeof options.navigator !== 'undefined' && typeof options.navigator.navigateToResults === 'function') {
@@ -1063,9 +1064,9 @@
                 storedResult = null;
             }
             if (typeof options.navigator !== 'undefined' && typeof options.navigator.navigateToResult === 'function') {
-                options.navigator.navigateToResult(resultEntry);
+                options.navigator.navigateToResult(resultEntry, snapTimestamp);
             } else if (typeof options.onResultEntry === 'function') {
-                options.onResultEntry(resultEntry);
+                options.onResultEntry(resultEntry, snapTimestamp);
             }
         };
 
@@ -1482,9 +1483,9 @@
 
     function SnapscreenSnapViewController(logger, snapService, blobService, sportEventService, templateEngine,
                                           tvChannelService, tsImageService, adImageService, options) {
-        var self = this, active = false, snapComponent, searchResults, resultsSnapButton, videoDevices, zoom, video,
-            viewFrame, checkCameraTimeout, autoSnapTimeout, autoSnapStatus, currentStream, storage, blocked,
-            errorMessage, feedbackMessage, uiNavigator, uiBlocker,
+        var self = this, active = false, snapTimestamp = 0, snapComponent, searchResults, resultsSnapButton,
+            videoDevices, zoom, video, viewFrame, checkCameraTimeout, autoSnapTimeout, autoSnapStatus, currentStream,
+            storage, blocked, errorMessage, feedbackMessage, uiNavigator, uiBlocker,
             SNAP_MAX_DIMENSION = 1024,
             AUTOSNAP_MAX_DIMENSION = 512,
             AUTOSNAP_DELAY_INITIAL = 3000,
@@ -1559,6 +1560,7 @@
         function onSearchResult(result) {
             uiBlocker.unblock();
             feedbackMessage.hide();
+            result.snapTimestamp = snapTimestamp;
             if (result.resultEntries.length) {
                 delegateEvent('onResult', result);
                 uiNavigator.navigateToResults(result);
@@ -1582,6 +1584,7 @@
         }
 
         function onDataReady(blobMetadata) {
+            snapTimestamp = Date.now();
             errorMessage.hide();
             feedbackMessage.show(self.messages.uploadingImage);
             if (options.searchAds) {
@@ -1641,6 +1644,7 @@
         }
 
         function onAutoSnapDataReady(blobMetadata) {
+            snapTimestamp = Date.now();
             snapService.autoSnap(blobMetadata, onAutoSnapResult, onAutoSnapFailed);
         }
 
