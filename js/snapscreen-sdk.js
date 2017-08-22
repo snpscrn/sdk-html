@@ -426,11 +426,6 @@
             if (snapscreen.countryCode()) {
                 headers['X-Snapscreen-CountryCode'] = snapscreen.countryCode();
             }
-            return headers;
-        }
-
-        function snapWithAdsHttpHeaders(request) {
-            var headers = snapHttpHeaders(request);
             if (request.searchAds) {
                 headers['X-Snapscreen-SearchAds'] = 'true';
             }
@@ -512,8 +507,7 @@
         return {
             "epg": {
                 "snap": function snapEpg(request, resolve, reject, onUploadProgress) {
-                    snap('/api/tv-search/epg/by-image', request, snapWithAdsHttpHeaders,
-                        resolve, reject, onUploadProgress);
+                    snap('/api/tv-search/epg/by-image', request, snapHttpHeaders, resolve, reject, onUploadProgress);
                 },
                 "autoSnap": function autoSnapEpg(request, resolve, reject, onUploadProgress) {
                     snap('/api/tv-search/epg/near-timestamp/by-image', request, autoSnapHttpHeaders,
@@ -523,15 +517,13 @@
             },
             "ads": {
                 "snap": function snapEpg(request, resolve, reject, onUploadProgress) {
-                    snap('/api/ads/search/by-image', request, snapHttpHeaders,
-                        resolve, reject, onUploadProgress);
+                    snap('/api/ads/search/by-image', request, snapHttpHeaders, resolve, reject, onUploadProgress);
                 },
                 "storeFeedback": storeFeedback
             },
             "sport": {
                 "snap": function snapEpg(request, resolve, reject, onUploadProgress) {
-                    snap('/api/tv-search/sport/by-image', request, snapWithAdsHttpHeaders,
-                        resolve, reject, onUploadProgress);
+                    snap('/api/tv-search/sport/by-image', request, snapHttpHeaders, resolve, reject, onUploadProgress);
                 },
                 "autoSnap": function autoSnapEpg(request, resolve, reject, onUploadProgress) {
                     snap('/api/tv-search/sport/near-timestamp/by-image', request, autoSnapHttpHeaders,
@@ -1629,6 +1621,9 @@
         }
 
         function onAutoSnapResult(result) {
+            uiBlocker.unblock();
+            feedbackMessage.hide();
+            result.snapTimestamp = snapTimestamp;
             if (result.resultEntries.length) {
                 delegateEvent('onResult', result);
                 uiNavigator.navigateToResults(result);
@@ -1645,6 +1640,9 @@
 
         function onAutoSnapDataReady(blobMetadata) {
             snapTimestamp = Date.now();
+            if (options.searchAds) {
+                blobMetadata.searchAds = true;
+            }
             snapService.autoSnap(blobMetadata, onAutoSnapResult, onAutoSnapFailed);
         }
 

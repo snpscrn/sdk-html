@@ -108,7 +108,11 @@ Results of sport event search will be provided in the following format:
    },
    sportEvent: {
      id: number, // long
-     externalId: string,
+     sportDataProviderCode: string,
+     sportDataProviderMatchId: string,
+     tvDataProviderCode: string,
+     tvDataProviderChannelId: string,
+     tvDataProviderChannelName: string,
      tvChannelId: number, // long
      startTime: string, // iso date-time: yyyy-MM-dd'T'HH:mm:ss.SSSZZ
      endTime: string, // iso date-time: yyyy-MM-dd'T'HH:mm:ss.SSSZZ
