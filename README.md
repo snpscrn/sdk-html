@@ -44,7 +44,7 @@ The first step in initialization of TV search is to create corresponding control
 to which results will be provided with timestamp when snap was made:
 ```javascript
 var tvSnapController = SnapscreenKit.tvSnapViewController({
-    onResultEntry: function (resultEntry, snapTimestamp) {
+    onResultEntry: function (resultEntry, snapTimestamp, screenQuadrangle) {
         //TODO: handle snap results here.
     }
 });
@@ -80,7 +80,7 @@ Process of initialization of SDK for sport event search is the same as for TV se
 a different function:
 ```javascript
 var sportSnapController = SnapscreenKit.sportSnapViewController({
-    onResultEntry: function (resultEntry, snapTimestamp) {
+    onResultEntry: function (resultEntry, snapTimestamp, screenQuadrangle) {
         //TODO: handle snap results here.
     }
 });
@@ -139,7 +139,7 @@ Process of initialization of SDK for advertisement search is the same as for TV 
 a different function:
 ```javascript
 var snapController = SnapscreenKit.adsSnapViewController({
-    onResultEntry: function (resultEntry, snapTimestamp) {
+    onResultEntry: function (resultEntry, snapTimestamp, screenQuadrangle) {
         //TODO: handle snap results here.
     }
 });

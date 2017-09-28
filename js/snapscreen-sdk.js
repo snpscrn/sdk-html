@@ -448,6 +448,7 @@
                     if (results.adEntries && results.adEntries.length > 0) {
                         results = {
                             "requestUuid": results.requestUuid,
+                            "screenQuadrangles": results.screenQuadrangles,
                             "resultEntries": merge(results.resultEntries, results.adEntries)
                         };
                     }
@@ -577,7 +578,7 @@
         function prepareStreamBlob(source, viewFinder, scaleFactor, maxDimension,  resolve, reject) {
             try {
                 var sx = 0, sy = 0, sourceWidth = source.videoWidth, sourceHeight = source.videoHeight,
-                    ratio, preferredWidth, preferredHeight, dataCanvas, ctx;
+                    ratio, preferredWidth, preferredHeight, dataCanvas;
                 if (scaleFactor > 1 || source !== viewFinder) {
                     ratio = Math.max(source.videoWidth / source.clientWidth, source.videoHeight / source.clientHeight);
                     sourceWidth = Math.floor(viewFinder.clientWidth * ratio / scaleFactor);
@@ -606,8 +607,8 @@
                 dataCanvas = window.document.createElement('canvas');
                 dataCanvas.width = preferredWidth;
                 dataCanvas.height = preferredHeight;
-                ctx = dataCanvas.getContext('2d');
-                ctx.drawImage(source, sx, sy, sourceWidth, sourceHeight, 0, 0, preferredWidth, preferredHeight);
+                dataCanvas.getContext('2d').drawImage(source, sx, sy, sourceWidth, sourceHeight,
+                    0, 0, preferredWidth, preferredHeight);
 
                 canvasToBlob(dataCanvas, resolve);
             } catch (e) {
@@ -1002,7 +1003,7 @@
     }
 
     function DefaultNavigationBehavior(controller, snapComponent, snapService, templateEngine, options) {
-        var modal, modalTemplate, vibrate, vibrateDelegate, storedResult, snapTimestamp;
+        var modal, modalTemplate, vibrate, vibrateDelegate, storedResult;
 
         function close() {
             controller.dispose();
@@ -1031,7 +1032,6 @@
 
         this.navigateToResults = function (result) {
             storedResult = result;
-            snapTimestamp = result.snapTimestamp;
             var parent = snapComponent.parentNode;
             controller.dispose();
             if (typeof options.navigator !== 'undefined' && typeof options.navigator.navigateToResults === 'function') {
@@ -1047,18 +1047,23 @@
         };
 
         this.navigateToResult = function (resultEntry) {
+            var snapTimestamp, screenQuadrangle;
             controller.dispose();
             if (modal.parentNode === document.body) {
                 document.body.removeChild(modal);
             }
             if (storedResult) {
+                snapTimestamp = storedResult.snapTimestamp;
+                if (storedResult.screenQuadrangles && storedResult.screenQuadrangles.length > 0) {
+                    screenQuadrangle = storedResult.screenQuadrangles[0];
+                }
                 snapService.storeFeedback(storedResult, resultEntry);
                 storedResult = null;
             }
             if (typeof options.navigator !== 'undefined' && typeof options.navigator.navigateToResult === 'function') {
-                options.navigator.navigateToResult(resultEntry, snapTimestamp);
+                options.navigator.navigateToResult(resultEntry, snapTimestamp, screenQuadrangle);
             } else if (typeof options.onResultEntry === 'function') {
-                options.onResultEntry(resultEntry, snapTimestamp);
+                options.onResultEntry(resultEntry, snapTimestamp, screenQuadrangle);
             }
         };
 
