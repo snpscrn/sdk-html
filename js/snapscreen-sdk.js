@@ -11,16 +11,6 @@
         };
     }
 
-    function extend(target, options) {
-        var name;
-        for (name in options) {
-            if (options.hasOwnProperty(name) && typeof !target.hasOwnProperty(name)) {
-                target[name] = options[name];
-            }
-        }
-        return target;
-    }
-
     function merge(left, right){
         var result = [], il = 0, ir = 0;
 
@@ -1185,16 +1175,10 @@
     }
 
     function VideoDevicesManager() {
-        var devices, current, getUserMedia, delegate,
-            defaultCameraConstraints = {
-                audio: false,
-                video: {
-                    optional: [
-                        {minWidth: 320}, {minWidth: 640}, {minWidth: 1024},
-                        {minWidth: 1280}, {minWidth: 1920}, {minWidth: 2560}
-                    ]
-                }
-            };
+        var devices, selectedVideoDevice, getUserMedia, getDeviceConstraints,
+            videoOptional = [{minWidth: 320}, {minWidth: 640}, {minWidth: 1024},
+                {minWidth: 1280}, {minWidth: 1920}, {minWidth: 2560}],
+            defaultConstraints = {audio: false, video: {optional: videoOptional}};
 
         function detect(resolve, reject) {
             if (typeof devices !== 'undefined') {
@@ -1225,14 +1209,19 @@
                 });
             } else if (navigator && navigator.mediaDevices && typeof navigator.mediaDevices.enumerateDevices === 'function') {
                 navigator.mediaDevices.enumerateDevices().then(function (mediaDevices) {
-                    var i;
+                    var i, facing;
                     devices = [];
                     for (i = 0; i < mediaDevices.length; i += 1) {
                         if (mediaDevices[i].kind === 'videoinput') {
+                            if (mediaDevices[i].label === '') {
+                                facing = (devices.length / 2 === 0) ? 'user' : 'environment';
+                            } else {
+                                facing = mediaDevices[i].label.endsWith('facing back') ? 'environment' : 'user';
+                            }
                             devices.push({
                                 id: mediaDevices[i].deviceId,
                                 label: mediaDevices[i].label,
-                                facing: mediaDevices[i].label.endsWith('facing back') ? 'environment' : 'user',
+                                facing: facing,
                                 kind: 'videoinput'
                             });
                         }
@@ -1251,25 +1240,21 @@
 
         function open(device, resolve, reject) {
             function onDeviceStreamReady(stream) {
-                current = device;
+                selectedVideoDevice = device;
                 resolve(stream);
             }
-
             if (device) {
-                getUserMedia({
-                    audio: false,
-                    video: extend({mandatory: {sourceId: device.id}}, defaultCameraConstraints.video)
-                }, onDeviceStreamReady, reject);
+                getUserMedia(getDeviceConstraints(device), onDeviceStreamReady, reject);
             } else {
-                getUserMedia(defaultCameraConstraints, onDeviceStreamReady, reject);
+                getUserMedia(defaultConstraints, onDeviceStreamReady, reject);
             }
         }
 
         this.openPreferred = function (resolve, reject) {
             if (typeof getUserMedia !== 'function') {
                 reject('getUserMedia is not supported');
-            } else if (current) {
-                open(current, resolve, reject);
+            } else if (selectedVideoDevice) {
+                open(selectedVideoDevice, resolve, reject);
             } else {
                 detect(function onVideoDevicesDetected(devices) {
                     var device = null, i;
@@ -1289,12 +1274,12 @@
         };
 
         this.switchDevice = function (resolve, reject) {
-            if (!devices || devices.length < 2 || !current) {
+            if (!devices || devices.length < 2 || !selectedVideoDevice) {
                 reject('no video device to switch');
             }
-            var index = devices.indexOf(current);
+            var index = devices.indexOf(selectedVideoDevice);
             if (index < 0) {
-                reject('unknown current video device');
+                reject('unknown selected video device video device');
             }
             index += 1;
             if (index >= devices.length) {
@@ -1311,7 +1296,7 @@
             return window.location.protocol === 'https:' && typeof getUserMedia === 'function';
         };
 
-        // detect get user media fuction
+        // detect get user media function
         getUserMedia = null;
         if (typeof navigator.mediaDevices !== 'undefined' &&
             typeof navigator.mediaDevices.getUserMedia === 'function') {
@@ -1319,17 +1304,48 @@
                 navigator.mediaDevices.getUserMedia(constraints).then(result, reject);
             };
         } else {
-            delegate = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
-            if (typeof delegate === 'function') {
-                if (delegate.length && delegate.length === 3) {
+            navigator.getUserMedia = navigator.getUserMedia ||
+                navigator.webkitGetUserMedia ||
+                navigator.mozGetUserMedia;
+            if (typeof navigator.getUserMedia === 'function') {
+                if (navigator.getUserMedia.length && navigator.getUserMedia.length === 3) {
                     getUserMedia = function (constraints, result, reject) {
-                        delegate.call(navigator, constraints, result, reject);
+                        navigator.getUserMedia(constraints, result, reject);
                     };
                 } else {
                     getUserMedia = function (constraints, result, reject) {
-                        delegate.call(navigator, result, reject);
+                        navigator.getUserMedia(result, reject);
                     };
                 }
+            }
+        }
+
+        // detect constraint factory function
+        getDeviceConstraints = function getDeviceConstraintsDefault(device) {
+            return {
+                audio: false,
+                video: {mandatory: {sourceId: device.id}, optional: videoOptional}
+            };
+        };
+        if (typeof navigator.mediaDevices !== 'undefined' &&
+            typeof navigator.mediaDevices.getSupportedConstraints === 'function') {
+            var supportedConstraints = navigator.mediaDevices.getSupportedConstraints();
+            if (supportedConstraints.deviceId) {
+                getDeviceConstraints = function getDeviceConstraintsWithDeviceId(device) {
+                    return {
+                        audio: false,
+                        video: {deviceId: device.id, width: {min: 320, ideal: 1920, max: 2560}}
+                    };
+                };
+            }
+            var iOS = navigator.userAgent.match(/iPad/i) || navigator.userAgent.match(/iPhone/i);
+            if (iOS || (!supportedConstraints.deviceId && supportedConstraints.facingMode)) {
+                getDeviceConstraints = function getDeviceConstraintsWithFacingMode(device) {
+                    return {
+                        audio: false,
+                        video: {facingMode: device.facing, width: {min: 320, ideal: 1920, max: 2560}}
+                    };
+                };
             }
         }
     }
@@ -1401,7 +1417,8 @@
         }
 
         function onTouchStart(event) {
-            if ((inputMethod !== '' && inputMethod !== 'PINCH_ZOOM') || event.target.tagName === 'BUTTON') {
+            if ((inputMethod !== '' && inputMethod !== 'PINCH_ZOOM') || event.target.tagName === 'BUTTON' ||
+                event.target.parentNode.tagName === 'BUTTON') {
                 return;
             }
             event.preventDefault();
@@ -1668,19 +1685,21 @@
 
         function disposeStream() {
             if (currentStream) {
-                if (currentStream.getTracks && typeof currentStream.getTracks === 'function') {
+                if (typeof currentStream.getTracks === 'function') {
                     var tracks = currentStream.getTracks(), i;
                     for (i = 0; i < tracks.length; i += 1) {
                         tracks[i].stop();
                     }
-                } else if (currentStream.stop && typeof currentStream.stop === 'function') {
+                } else if (typeof currentStream.stop === 'function') {
                     currentStream.stop();
                 }
                 currentStream = null;
 
-                window.URL.revokeObjectURL(video.src);
-                video.removeAttribute('src');
-                video.load();
+                if (video.src) {
+                    window.URL.revokeObjectURL(video.src);
+                    video.removeAttribute('src');
+                    video.load();
+                }
                 video = null;
                 viewFrame = null;
 
@@ -1754,7 +1773,13 @@
 
             currentStream = stream;
             video = template('video');
-            video.src = window.URL.createObjectURL(stream);
+            if (typeof video.srcObject !== 'undefined') {
+                video.srcObject = stream;
+            } else if (typeof video.mozSrcObject !== 'undefined') {
+                video.mozSrcObject = stream;
+            } else {
+                video.src = window.URL.createObjectURL(stream);
+            }
 
             zoom = new ZoomController(template);
             viewFrame = template('frame');
@@ -1907,7 +1932,7 @@
         tsImageService = tsImageServiceFactory(snapscreen, httpBlobCache),
         adImageService = adImageServiceFactory(snapscreen, httpBlobCache),
         templateEngine = templateEngineFactory({
-            "camera": '<div class="tv-search-camera"><video id="snapscreen:{suffix}:video" width="100%" height="100%" autoplay></video>' +
+            "camera": '<div class="tv-search-camera"><video id="snapscreen:{suffix}:video" width="100%" height="100%" autoplay muted playsInline></video>' +
             '<div id="snapscreen:{suffix}:frame" class="tv-search-frame"></div>' +
             '<div id="snapscreen:{suffix}:zoom" class="zoom-slider"><i class="zoom-pointer"></i><hr/></div>' +
             '<button id="snapscreen:{suffix}:snap" class="tv-search-button"><i class="icon-camera icon"></i></button>' +
