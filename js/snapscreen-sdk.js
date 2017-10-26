@@ -1856,8 +1856,10 @@
             if (needToShowTutorial()) {
                 switchFileMode();
                 showShortTutorial();
-            } else {
+            } else if (videoDevices.isSupported()) {
                 checkCamera();
+            } else {
+                switchFileMode();
             }
         }
 
