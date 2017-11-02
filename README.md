@@ -159,3 +159,6 @@ Results of advertisement search will be provided in the following format:
    score: number (double)
  }
 ```
+
+### Support
+In case of any questions or problems please contact us at [support@snapscreen.com](mailto:support@snapscreen.com).
