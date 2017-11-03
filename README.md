@@ -1,5 +1,8 @@
 # sdk-html
 
+### Support
+In case of any questions or problems please contact us at [support@snapscreen.com](mailto:support@snapscreen.com).
+
 ### Basic setup
 The first step of integration Snapscreen SDK into your site is to include provided CSS and JavaScript files 
 on your HTML page, like this:
@@ -159,6 +162,3 @@ Results of advertisement search will be provided in the following format:
    score: number (double)
  }
 ```
-
-### Support
-In case of any questions or problems please contact us at [support@snapscreen.com](mailto:support@snapscreen.com).
