@@ -17,7 +17,7 @@ Snapscreen SDK requires Access token to communicate with Snapscreen API which us
 OAuth 2.0 authentication mechanism. Customers will be provided with Client ID and Secret which it should use 
 to receive access token. Here is an example of HTTP request using curl to receive access token:
 ```bash
-curl -u 'YourClientId:YourClientSecret' -d 'grant_type=anonymous'  https://api.snapscreen.com/api/oauth/token
+curl -u "YourClientId:YourClientSecret" -d "grant_type=anonymous"  https://api.snapscreen.com/api/oauth/token
 ```
 It is not secure to have this mechanism to be implemented on JavaScript side, because in this case it will be 
 ease enough to steal your customer credentials. That why we suggest to implement this logic in customer server side. 
