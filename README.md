@@ -59,24 +59,24 @@ tvSnapController.createSnapButton().appendTo(document.getElementById('main'));
 ```
 Results of TV search will be provided in the following format:
 ```javascript
- {
-   tvChannel: {
-     id: number (long),
-     code: string,
-     name: string,
-     homepage: string (url),
-     _links: {
-       self: {
-         href: string (url)
-       },
-       logo: {
-         href: string (url)
-       }
-     }
-   },
-   timestampRef: number (long),
-   score: number (double)
- }
+{
+  tvChannel: {
+    id: number (long),
+    code: string,
+    name: string,
+    homepage: string (url),
+    _links: {
+      self: {
+        href: string (url)
+      },
+      logo: {
+        href: string (url)
+      }
+    }
+  },
+  timestampRef: number (long),
+  score: number (double)
+}
 ```
 ### Sport event search setup
 Process of initialization of SDK for sport event search is the same as for TV search, but you need to call
@@ -91,51 +91,48 @@ sportSnapController.createSnapButton().appendTo(document.getElementById('main'))
 ```
 Results of sport event search will be provided in the following format:
 ```javascript
- {
-   tvChannel: {
-     id: number, // long
-     code: string,
-     name: string,
-     homepage: string, // URL
-     _links: {
-       self: {
-         href: string // URL
-       },
-       logo: {
-         href: string // URL
-       },
-       poster: {
-         href: string // URL
-       }
-     }
-   },
-   sportEvent: {
-     id: number, // long
-     sportDataProviderCode: string,
-     sportDataProviderMatchId: string,
-     tvDataProviderCode: string,
-     tvDataProviderChannelId: string,
-     tvDataProviderChannelName: string,
-     tvChannelId: number, // long
-     startTime: string, // iso date-time: yyyy-MM-dd'T'HH:mm:ss.SSSZZ
-     endTime: string, // iso date-time: yyyy-MM-dd'T'HH:mm:ss.SSSZZ
-     sport: string,
-     tournament: string,
-     category: string,
-     competitors: [
-       {
+{
+  tvChannel: {
+    id: number, // long
+    code: string,
+    name: string,
+    homepage: string, // URL
+    _links: {
+      self: {
+        href: string // URL
+      },
+      logo: {
+        href: string // URL
+      },
+      poster: {
+        href: string // URL
+      }
+    }
+  },
+  sportEvent: {
+    id: number, // long
+    sportDataProviderCode: string,
+    sportDataProviderMatchId: string,
+    tvChannelId: number, // long
+    startTime: string, // iso date-time: yyyy-MM-dd'T'HH:mm:ss.SSSZZ
+    endTime: string, // iso date-time: yyyy-MM-dd'T'HH:mm:ss.SSSZZ
+    sport: string,
+    tournament: string,
+    category: string,
+    competitors: [
+      {
          name: string
-       }
-     ],
-     _links: {
-       self: {
-         href: string // URL
-       }
-     }
-   },
-   timestampRef: number (long),
-   score: number (double)
- }
+      }
+    ],
+    _links: {
+      self: {
+        href: string // URL
+      }
+    }
+  },
+  timestampRef: number (long),
+  score: number (double)
+}
 ```
 ### Advertisements search setup
 Process of initialization of SDK for advertisement search is the same as for TV search, but you need to call
@@ -150,15 +147,15 @@ snapController.createSnapButton().appendTo(document.getElementById('main'));
 ```
 Results of advertisement search will be provided in the following format:
 ```javascript
- {
-   advertisement: {
-     id: number (long),
-     title: string,
-     description: string,
-     landingPageUrl: string,
-     duration: number (long)
-   },
-   timestampRef: number (long),
-   score: number (double)
- }
+{
+  advertisement: {
+    id: number (long),
+    title: string,
+    description: string,
+    landingPageUrl: string,
+    duration: number (long)
+  },
+  timestampRef: number (long),
+  score: number (double)
+}
 ```
