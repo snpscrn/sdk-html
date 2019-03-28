@@ -25,6 +25,21 @@
         return result.concat(left.slice(il)).concat(right.slice(ir));
     }
 
+    function extend() {
+        var i, prop, argument, extended = {};
+        for (i = 0; i < arguments.length; i++) {
+            argument = arguments[i];
+            if (argument) {
+                for (prop in argument) {
+                    if (Object.prototype.hasOwnProperty.call(argument, prop)) {
+                        extended[prop] = argument[prop];
+                    }
+                }
+            }
+        }
+        return extended;
+    }
+
     function loggerFactory() {
         var handler = {
             logFatal: function logError(message) {
@@ -409,9 +424,7 @@
         function snapHttpHeaders(request) {
             var headers = {
                 "Content-type": 'application/octet-stream',
-                "X-Snapscreen-MimeType": request.mimeType,
-                "X-Snapscreen-Width": request.width,
-                "X-Snapscreen-Height": request.height
+                "X-Snapscreen-MimeType": request.mimeType
             };
             if (snapscreen.countryCode()) {
                 headers['X-Snapscreen-CountryCode'] = snapscreen.countryCode();
@@ -507,16 +520,16 @@
                 "storeFeedback": storeFeedback
             },
             "ads": {
-                "snap": function snapEpg(request, resolve, reject, onUploadProgress) {
+                "snap": function snapAds(request, resolve, reject, onUploadProgress) {
                     snap('/api/ads/search/by-image', request, snapHttpHeaders, resolve, reject, onUploadProgress);
                 },
                 "storeFeedback": storeFeedback
             },
             "sport": {
-                "snap": function snapEpg(request, resolve, reject, onUploadProgress) {
+                "snap": function snapSport(request, resolve, reject, onUploadProgress) {
                     snap('/api/tv-search/sport/by-image', request, snapHttpHeaders, resolve, reject, onUploadProgress);
                 },
-                "autoSnap": function autoSnapEpg(request, resolve, reject, onUploadProgress) {
+                "autoSnap": function autoSnapSport(request, resolve, reject, onUploadProgress) {
                     snap('/api/tv-search/sport/near-timestamp/by-image', request, autoSnapHttpHeaders,
                         resolve, reject, onUploadProgress);
                 },
@@ -878,8 +891,8 @@
         };
     }
 
-    function SnapscreenSearchResults(snapComponent, uiNavigator, sportEventService, templateEngine,
-                                     tvChannelService, tsImageService, adImageService) {
+    function SnapscreenSearchResults(snapComponent, noEntryImage, uiNavigator, sportEventService,
+                                     templateEngine, tvChannelService, tsImageService, adImageService) {
         function numberToString(number) {
             return number < 10 ? '0' + number.toString() : number.toString();
         }
@@ -905,14 +918,16 @@
             }
 
             function setNoEntryImage() {
-                setEntryImage('/images/header-gradient.png');
+                setEntryImage(noEntryImage);
             }
 
             function showTvChannelLiveImage() {
                 tvChannelService.resolveLiveImage(resultEntry.tvChannel, setEntryImage, setNoEntryImage);
             }
 
-            if (resultEntry.advertisement) {
+            if (resultEntry._links && resultEntry._links.frame && resultEntry._links.frame.href) {
+                setEntryImage(resultEntry._links.frame.href);
+            } else if (resultEntry.advertisement) {
                 adImageService.downloadAtTimeOffset(resultEntry.advertisement.id, resultEntry.timeOffset,
                     setEntryImage, setNoEntryImage);
             } else {
@@ -1339,7 +1354,7 @@
                 };
             }
             var iOS = navigator.userAgent.match(/iPad/i) || navigator.userAgent.match(/iPhone/i);
-            if (iOS || (!supportedConstraints.deviceId && supportedConstraints.facingMode)) {
+            if (supportedConstraints.facingMode && (iOS || !supportedConstraints.deviceId)) {
                 getDeviceConstraints = function getDeviceConstraintsWithFacingMode(device) {
                     return {
                         audio: false,
@@ -1417,8 +1432,7 @@
         }
 
         function onTouchStart(event) {
-            if ((inputMethod !== '' && inputMethod !== 'PINCH_ZOOM') || event.target.tagName === 'BUTTON' ||
-                event.target.parentNode.tagName === 'BUTTON') {
+            if (inputMethod !== '' && inputMethod !== 'PINCH_ZOOM') {
                 return;
             }
             event.preventDefault();
@@ -1495,11 +1509,11 @@
         container.addEventListener('touchend', onTouchEnd);
     }
 
-    function SnapscreenSnapViewController(logger, snapService, blobService, sportEventService, templateEngine,
-                                          tvChannelService, tsImageService, adImageService, options) {
+    function SnapscreenSnapViewController(logger, snapService, blobService, sportEventService, tvChannelService,
+                                          tsImageService, adImageService, options) {
         var self = this, active = false, snapTimestamp = 0, snapComponent, searchResults, resultsSnapButton,
             videoDevices, zoom, video, viewFrame, checkCameraTimeout, autoSnapTimeout, autoSnapStatus, currentStream,
-            storage, blocked, errorMessage, feedbackMessage, uiNavigator, uiBlocker,
+            storage, blocked, errorMessage, feedbackMessage, uiNavigator, uiBlocker, templateEngine,
             SNAP_MAX_DIMENSION = 1024,
             AUTOSNAP_MAX_DIMENSION = 512,
             AUTOSNAP_DELAY_INITIAL = 3000,
@@ -1510,10 +1524,10 @@
             AUTOSNAP_STATUS_SNAP_REQUESTED = 'SNAP_REQUESTED';
 
         function SnapButton() {
-            var snapButton;
+            var snapButton, withoutInputFile = false;
 
             function snapButtonClick(e) {
-                if (needToShowTutorial() || videoDevices.isSupported()) {
+                if (withoutInputFile || needToShowTutorial() || videoDevices.isSupported()) {
                     e.preventDefault();
                     uiNavigator.navigateToComponent(self);
                 }
@@ -1522,15 +1536,25 @@
                 }
             }
 
+            function bindTo(button, file) {
+                button.addEventListener('click', snapButtonClick);
+                if (file) {
+                    file.addEventListener('change', fileChanged);
+                } else {
+                    withoutInputFile = true;
+                }
+
+            }
             function init() {
                 if (!snapButton) {
                     snapButton = document.createElement('div');
-                    snapButton.setAttribute('class', 'snapscreen');
-                    var snapButtonTemplate = templateEngine.load('button', snapButton);
-                    snapButtonTemplate('file').addEventListener('change', fileChanged);
-                    snapButtonTemplate('label').addEventListener('click', snapButtonClick);
+                    snapButton.setAttribute('class', options.cssClass);
+                    var template = templateEngine.load('button', snapButton);
+                    bindTo(template('label'), template('file'));
                 }
             }
+
+            this.bindTo = bindTo;
 
             this.appendTo = function appendSnapButtonTo(target) {
                 init();
@@ -1579,7 +1603,7 @@
                 delegateEvent('onResult', result);
                 uiNavigator.navigateToResults(result);
             } else {
-                errorMessage.show(self.messages.noResults);
+                errorMessage.show(options.messages.noResults);
                 delegateEvent('onNoResult', result);
             }
         }
@@ -1587,20 +1611,20 @@
         function onSearchFailed(error) {
             uiBlocker.unblock();
             feedbackMessage.hide();
-            errorMessage.show(self.messages.failWithError);
+            errorMessage.show(options.messages.failWithError);
             delegateEvent('onError', error);
         }
 
         function onSearchUploadProgress(event) {
             if (event.loaded === event.total) {
-                feedbackMessage.show(self.messages.waitingResult);
+                feedbackMessage.show(options.messages.waitingResult);
             }
         }
 
         function onDataReady(blobMetadata) {
             snapTimestamp = Date.now();
             errorMessage.hide();
-            feedbackMessage.show(self.messages.uploadingImage);
+            feedbackMessage.show(options.messages.uploadingImage);
             if (options.searchAds) {
                 blobMetadata.searchAds = true;
             }
@@ -1611,7 +1635,7 @@
             logger.logError('Failed to prepare image data to send.', error);
             uiBlocker.unblock();
             feedbackMessage.hide();
-            errorMessage.show(self.messages.photoError);
+            errorMessage.show(options.messages.photoError);
             delegateEvent('onError', error);
         }
 
@@ -1754,6 +1778,10 @@
             replaceBlocker(new FileUiBlocker(template));
         }
 
+        function stopEventPropagation(event) {
+            event.stopPropagation();
+        }
+
         function onStreamReady(stream) {
             if (checkCameraTimeout) {
                 clearTimeout(checkCameraTimeout);
@@ -1761,10 +1789,16 @@
             }
 
             var template = templateEngine.load('camera', snapComponent);
-            template('snap').addEventListener('click', snap);
+            var snapButton = template('snap');
+            snapButton.addEventListener('click', snap);
+            snapButton.addEventListener('mousemove', stopEventPropagation);
+            snapButton.addEventListener('touchstart', stopEventPropagation);
+
             var switchCameraButton = template('switch');
             if (videoDevices.isSwitchSupported()) {
                 switchCameraButton.addEventListener('click', switchCamera);
+                switchCameraButton.addEventListener('mousemove', stopEventPropagation);
+                switchCameraButton.addEventListener('touchstart', stopEventPropagation);
             } else {
                 switchCameraButton.parentNode.removeChild(switchCameraButton);
             }
@@ -1893,47 +1927,22 @@
             resultsSnapButton.appendTo(snapComponent);
         };
 
-        this.messages = {
+        options = extend({
+            "vibrate": false,
+            "searchAds": false,
+            "autoSnap": false,
+            "withoutTutorial": false,
+            "cssClass": 'snapscreen',
+            "noEntryImage": '/images/header-gradient.png'
+        }, options);
+        options.messages = extend({
             photoError: 'Some error happens while preparing photo to send. Please retry searching with different image.',
             failWithError: 'Some error happens while searching a TV. Please retry searching with different image.',
             noResults: 'We’re sorry, your Snap returned no results - either the channel you are watching is not supported or a TV screen could not be detected.',
             uploadingImage: 'Uploading image...',
             waitingResult: 'Getting results...'
-        };
-
-        snapComponent = document.createElement('div');
-        snapComponent.setAttribute('class', 'snapscreen');
-
-        options = options || {};
-
-        zoom = null;
-        blocked = false;
-        autoSnapStatus = AUTOSNAP_STATUS_NONE;
-
-        videoDevices = new VideoDevicesManager();
-        errorMessage = new AutoHideMessage(snapComponent);
-        feedbackMessage = new FeedbackMessage(snapComponent);
-        uiNavigator = new DefaultNavigationBehavior(this, snapComponent, snapService, templateEngine, options);
-        searchResults = new SnapscreenSearchResults(snapComponent, uiNavigator, sportEventService, templateEngine,
-            tvChannelService, tsImageService, adImageService);
-        resultsSnapButton = new SnapButton();
-        storage = (typeof Storage !== 'undefined') ? localStorage : {snapscreenTvSearchVisited: true};
-
-        replaceBlocker();
-    }
-
-    var logger = loggerFactory(),
-        accessTokenHolder = accessTokenHolderFactory(logger),
-        snapscreen = snapscreenFactory(logger, accessTokenHolder),
-        webSearchService = webSearchServiceFactory(snapscreen),
-        snapService = snapServiceFactory(logger, snapscreen),
-        blobService = blobServiceFactory(logger),
-        httpBlobCache = httpBlobCacheFactory(),
-        tvChannelService = tvChannelServiceFactory(snapscreen, httpBlobCache),
-        sportEventService = sportEventServiceFactory(),
-        tsImageService = tsImageServiceFactory(snapscreen, httpBlobCache),
-        adImageService = adImageServiceFactory(snapscreen, httpBlobCache),
-        templateEngine = templateEngineFactory({
+        }, options.messages);
+        options.templates = extend({
             "camera": '<div class="tv-search-camera"><video id="snapscreen:{suffix}:video" width="100%" height="100%" autoplay muted playsInline></video>' +
             '<div id="snapscreen:{suffix}:frame" class="tv-search-frame"></div>' +
             '<div id="snapscreen:{suffix}:zoom" class="zoom-slider"><i class="zoom-pointer"></i><hr/></div>' +
@@ -1966,7 +1975,39 @@
             '</div>' +
             '</div>',
             "waiting": '<div class="tv-search-feedback">Getting access to the camera...</div>'
-        });
+        }, options.templates);
+
+        snapComponent = document.createElement('div');
+        snapComponent.setAttribute('class', options.cssClass);
+        templateEngine = templateEngineFactory(options.templates);
+
+        zoom = null;
+        blocked = false;
+        autoSnapStatus = AUTOSNAP_STATUS_NONE;
+
+        videoDevices = new VideoDevicesManager();
+        errorMessage = options.snapErrorMessage || new AutoHideMessage(snapComponent);
+        feedbackMessage = new FeedbackMessage(snapComponent);
+        uiNavigator = new DefaultNavigationBehavior(this, snapComponent, snapService, templateEngine, options);
+        searchResults = new SnapscreenSearchResults(snapComponent, options.noEntryImage, uiNavigator,
+            sportEventService, templateEngine, tvChannelService, tsImageService, adImageService);
+        resultsSnapButton = new SnapButton();
+        storage = (typeof Storage !== 'undefined') ? localStorage : {snapscreenTvSearchVisited: true};
+
+        replaceBlocker();
+    }
+
+    var logger = loggerFactory(),
+        accessTokenHolder = accessTokenHolderFactory(logger),
+        snapscreen = snapscreenFactory(logger, accessTokenHolder),
+        webSearchService = webSearchServiceFactory(snapscreen),
+        snapService = snapServiceFactory(logger, snapscreen),
+        blobService = blobServiceFactory(logger),
+        httpBlobCache = httpBlobCacheFactory(),
+        tvChannelService = tvChannelServiceFactory(snapscreen, httpBlobCache),
+        sportEventService = sportEventServiceFactory(),
+        tsImageService = tsImageServiceFactory(snapscreen, httpBlobCache),
+        adImageService = adImageServiceFactory(snapscreen, httpBlobCache);
 
     /**
      * Snapscreen SDK module.
@@ -1983,15 +2024,18 @@
         "currentSnapscreenTimestamp": snapscreen.currentTimestamp,
         "tvSnapViewController": function createSnapscreenTvSnapViewController(options) {
             return new SnapscreenSnapViewController(logger, snapService.epg, blobService, sportEventService,
-                templateEngine, tvChannelService, tsImageService, adImageService, options);
+                tvChannelService, tsImageService, adImageService, options);
         },
-        "sportSnapViewController": function createSnapscreenAdsSnapViewController(options) {
+        "sportSnapViewController": function createSnapscreenSportSnapViewController(options) {
             return new SnapscreenSnapViewController(logger, snapService.sport, blobService, sportEventService,
-                templateEngine, tvChannelService, tsImageService, adImageService, options);
+                tvChannelService, tsImageService, adImageService, extend({
+                    "cssClass": 'snapscreen snpbet',
+                    "noEntryImage": '/images/bet/header-gradient.png'
+                }, options));
         },
-        "adsSnapViewController": function createSnapscreenSportSnapViewController(options) {
+        "adsSnapViewController": function createSnapscreenAdsSnapViewController(options) {
             return new SnapscreenSnapViewController(logger, snapService.ads, blobService, sportEventService,
-                templateEngine, tvChannelService, tsImageService, adImageService, options);
+                tvChannelService, tsImageService, adImageService, options);
         },
         "webSearchService": webSearchService,
         "tvChannelService": tvChannelService,
