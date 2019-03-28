@@ -1,9 +1,9 @@
 /**
- * @file   clip-share-sdk.js
- * @brief  a Clip share SDK in form of AngularJS 1.5 module.
+ * @file   clip-share-module.js
+ * @brief  a AngularJS module that provides Clip Share functionality.
  * @copyright 2019 Snapscreen. All rights reserved.
  */
-angular.module('clipShareSdk', ['snapscreen-sdk'])
+angular.module('clipShare', ['snapscreen-sdk'])
     .controller('ClipShareController', ['$scope', function ($scope) {
         $scope.clipShared = function(clip) {
             $scope.$emit('clipShared', clip);

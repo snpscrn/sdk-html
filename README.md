@@ -177,13 +177,13 @@ Results of advertisement search will be provided in the following format:
 }
 ```
 
-# Clip Share SDK
+# Clip Share AngularJS module
 
-Clip Share SDK provides an AngularJS module with Clip Share functionality.
+Clip Share AngularJS module provides a set of components that implements Clip Share functionality.
 
 ### Basic setup
 
-The first step of the integration of Clip Share SDK is to integrate Snapscreen SDK as it Clip Share SDK only adds
+The first step of the integration of Clip Share AngularJS module is to integrate Snapscreen SDK as module only adds
 the functionality of Clip Sharing while still relying on the basic functionality of Snapscreen SDK. Please find
 more information about it above. But you need change the API URL to clip.farm instead of api.snapscreen.com
 on line 307 of snapscreen-sdk.js:
@@ -191,7 +191,7 @@ on line 307 of snapscreen-sdk.js:
 baseUrl = 'https://clip.farm';
 ```
 
-Clip Share SDK uses [Swiper JS library](https://idangero.us/swiper/) to provide gallery behavior. The second step is
+[Swiper JS library](https://idangero.us/swiper/) is used to provide gallery behavior. The second step is
 to include CSS and JS files, related to Swiper JS library on your HTML page:
 ```html
 <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/Swiper/4.0.7/css/swiper.min.css">
@@ -204,31 +204,31 @@ JW Player on their site and then you need to include provided configured player 
 <script type="text/javascript" src="https://cdn.jwplayer.com/libraries/YOUR_LICENSE.js"></script>
 ```
 
-Clip Share SDK provides an AngularJS module and as a result, we need to include AngularJS JavaScript on your HTML page.
-You can use a self-hosted version of AngularJS or CDN-hosted like this:
+You will also need to include AngularJS JavaScript on your HTML page. You can use a self-hosted version of AngularJS
+or CDN-hosted like this:
 ```html
 <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/angular.js/1.5.8/angular.min.js"></script>
 ```
 
-And of course you need to include provided CSS and JavaScript files related to Clip Farm SDK on your HTML page,
-like this:
+And of course you need to include provided CSS and JavaScript files related to Clip Farm AngularJS module
+on your HTML page, like this:
 ```html
 <script href="js/snapscreen-ng-sdk.js" type="text/javascript"></script>
-<script href="js/clip-share-sdk.js" type="text/javascript"></script>
+<script href="js/clip-share-module.js" type="text/javascript"></script>
 ```
 
 The final step of basic integration is to activate AngularJS application somewhere on your HTML page, like this:
 ```html
-<div id="clipShareApp" ng-app="clipShareSdk" ng-controller="ClipShareController">
+<div id="clipShareApp" ng-app="clipShare" ng-controller="ClipShareController">
     <clip-share result-entry="resultEntry" ng-if="resultEntry" on-clip-shared="clipShared(clip)"></clip-share>
 </div>
 ```
 
 ### Integration with Snapscreen SDK
 
-The functionality of Clip Share SDK is to give a user the possibility to share the clip. But before sharing a clip
-user needs to snap to find a moment he is looking for. Snapscreen SDK is responsible for snapping functionality and after
-snap you need to provide received resultEntry in onResultEntry callback to Clip Share SDK using the following code:
+Before sharing a clip user needs to snap to find a moment to be shared. Snapscreen SDK is responsible for
+snapping functionality and after snap you need to provide received resultEntry in onResultEntry callback
+to Clip Share component using the following code:
 ```javascript
 var clipShareAppElement = document.getElementById('clipShareApp');
 var $scope = angular.element(clipShareAppElement).scope();
@@ -239,8 +239,8 @@ $scope.$apply(function() {
 
 ### Clip Share result
 
-After resultEntry is provided to Clip Share SDK it will navigate the user through the clip-sharing process. To receive
-information about shared clip you need to subscribe for the corresponding event:
+After resultEntry is provided to Clip Share component it will navigate the user through the clip-sharing process.
+In order to receive information about shared clip you need to subscribe for the corresponding event:
 ```javascript
 var clipShareAppElement = document.getElementById('clipShareApp');
 var $scope = angular.element(clipShareAppElement).scope();
