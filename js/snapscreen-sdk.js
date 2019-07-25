@@ -168,18 +168,10 @@
     }
 
     function snapscreenFactory(logger, accessTokenHolder) {
-        var timeLag, baseUrl, countryCode, localeIdentifier;
+        var timeLag, baseUrl, localeIdentifier;
 
         function currentTimestamp() {
             return Date.now() - timeLag;
-        }
-
-        function setAndGetCountryCode(value) {
-            if (arguments.length === 0) {
-                return countryCode;
-            }
-            countryCode = value;
-            return countryCode;
         }
 
         function setAndGetLocaleIdentifier(value) {
@@ -311,7 +303,6 @@
             "http": http,
             "api": api,
             "currentTimestamp": currentTimestamp,
-            "countryCode": setAndGetCountryCode,
             "localeIdentifier": setAndGetLocaleIdentifier
         };
     }
@@ -375,9 +366,6 @@
                 page: pageNumber,
                 size: pageSize
             };
-            if (snapscreen.countryCode()) {
-                request.countryCode = snapscreen.countryCode();
-            }
             return request;
         }
 
@@ -426,9 +414,6 @@
                 "Content-type": 'application/octet-stream',
                 "X-Snapscreen-MimeType": request.mimeType
             };
-            if (snapscreen.countryCode()) {
-                headers['X-Snapscreen-CountryCode'] = snapscreen.countryCode();
-            }
             if (request.searchAds) {
                 headers['X-Snapscreen-SearchAds'] = 'true';
             }
@@ -2019,7 +2004,6 @@
         "api": snapscreen.api,
         "loggingHandler": logger.handler,
         "accessTokenHolder": accessTokenHolder,
-        "countryCode": snapscreen.countryCode,
         "localeIdentifier": snapscreen.localeIdentifier,
         "currentSnapscreenTimestamp": snapscreen.currentTimestamp,
         "tvSnapViewController": function createSnapscreenTvSnapViewController(options) {

@@ -12,10 +12,6 @@ angular.module('snapscreen-sdk', [])
             throw apiErr('nrtc', 'Refresh token callback is not configured');
         };
 
-        this.setCountryCode = function(countryCode) {
-            snapscreenKit.countryCode(countryCode);
-        };
-
         this.setRefreshTokenCallback = function (callback) {
             refreshTokenCallback = callback;
         };
@@ -41,7 +37,6 @@ angular.module('snapscreen-sdk', [])
                     });
                 },
                 "accessToken": snapscreenKit.accessTokenHolder.accessToken,
-                "countryCode": snapscreenKit.countryCode,
                 "currentSnapscreenTimestamp": snapscreenKit.currentSnapscreenTimestamp,
                 "webSearchService": snapscreenKit.webSearchService,
                 "tvChannelService": snapscreenKit.tvChannelService,

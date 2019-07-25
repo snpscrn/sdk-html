@@ -888,8 +888,7 @@
     background-color: #dddfe2;
 }
 
-.snapscreen.clipshare .snp-tab-container,
-.snapscreen.clipshare .snp-preview-meta {
+.snapscreen.clipshare .snp-tab-container {
     margin: 0 0 10px;
     padding: 0;
     list-style: none;
@@ -898,8 +897,7 @@
     display: flex;
 }
 
-.snapscreen.clipshare .snp-tab,
-.snapscreen.clipshare .snp-preview-meta-item {
+.snapscreen.clipshare .snp-tab {
     width: 33.333333333%;
     text-align: center;
     padding: 0;
