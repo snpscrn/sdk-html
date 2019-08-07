@@ -167,112 +167,202 @@
         };
     }
 
-    function snapscreenFactory(logger, accessTokenHolder) {
-        var timeLag, baseUrl, localeIdentifier;
+    function analyticsFactory() {
+        var trackEvent, category = 'SnapscreenSDK', label = 'JS/1.0.0';
+        trackEvent = function(action, value) {
+            var event;
+            try {
+                if (typeof ga === 'function') {
+                    event = {
+                        "hitType": 'event',
+                        "eventCategory": category,
+                        "eventAction": action,
+                        "eventLabel": label
+                    };
+                    if (typeof value !== 'undefined') {
+                        event.eventValue = value;
+                    }
+                    ga('send', event);
+                } else if (typeof gtag === 'function') {
+                    event = {
+                        'event_category': category,
+                        'event_label': label
+                    };
+                    if (typeof value !== 'undefined') {
+                        event.value = value;
+                    }
+                    gtag('event', action, event);
+                } else {
+                    console.log('Tracked event', {
+                        "eventCategory": category,
+                        "eventAction": action,
+                        "eventLabel": label,
+                        "eventValue": value
+                    });
+                }
+            } catch(error) {
+                console.error('Failed to track event', error);
+            }
+        };
+
+        return {
+            sdkInitialized: function() {
+                trackEvent('SnapSdkInit');
+            },
+            snapViewOpened: function() {
+                trackEvent('SnapViewOpen');
+            },
+            snapViewSnap: function() {
+                trackEvent('SnapViewSnap');
+            },
+            snapViewSnapResult: function(duration) {
+                trackEvent('SnapViewSnapResult', duration);
+            },
+            snapViewSnapFailed: function(duration) {
+                trackEvent('SnapViewSnapFail', duration);
+            },
+            snapViewSnapNegative: function(duration) {
+                trackEvent('SnapViewSnapNegative', duration);
+            },
+            snapViewClosed: function() {
+                trackEvent('SnapViewClose');
+            },
+            clipShareOpened: function() {
+                trackEvent('ClipShareOpen');
+            },
+            clipShareNotFound: function() {
+                trackEvent('ClipShareNotFound');
+            },
+            clipShareOpenFailed: function() {
+                trackEvent('ClipShareOpenFail');
+            },
+            clipSharePreviewPlay: function() {
+                trackEvent('ClipSharePreviewPlay');
+            },
+            clipSharePreviewClosed: function() {
+                trackEvent('ClipSharePreviewClose');
+            },
+            clipShareCreate: function() {
+                trackEvent('ClipShareCreate');
+            },
+            clipShareCreated: function() {
+                trackEvent('ClipShareCreated');
+            },
+            clipShareCreateFailed: function() {
+                trackEvent('ClipShareCreateFail');
+            },
+            clipShareClosed: function() {
+                trackEvent('ClipShareClose');
+            }
+        };
+    }
+
+    function http(request, resolve, reject, onUploadProgress) {
+        var xhr, url, header, paramsString, paramName, body;
+
+        function getResponseHeader(header) {
+            return xhr.getResponseHeader(header);
+        }
+
+        function onError() {
+            reject({
+                xhr: xhr,
+                data: ('response' in xhr) ? xhr.response : xhr.responseText,
+                status: xhr.status
+            });
+        }
+
+        function onLoad() {
+            var response = ('response' in xhr) ? xhr.response : xhr.responseText, status = xhr.status;
+            //bug (http://bugs.jquery.com/ticket/1450)
+            if (status === 1223) {
+                status = 204;
+            }
+            if (status >= 200 && status < 300) {
+                if (request.responseType === 'json' && typeof response === 'string') {
+                    response = JSON.parse(response);
+                }
+                resolve({
+                    xhr: xhr,
+                    headers: getResponseHeader,
+                    data: response,
+                    status: status
+                });
+            } else {
+                onError();
+            }
+        }
+
+        xhr = new XMLHttpRequest();
+        if (request.responseType) {
+            try {
+                xhr.responseType = request.responseType;
+            } catch (e) {
+                if (request.responseType !== 'json') {
+                    throw e;
+                }
+            }
+        }
+
+        xhr.onload = onLoad;
+        xhr.onerror = onError;
+        xhr.onabort = onError;
+        if (xhr.upload && typeof onUploadProgress === 'function') {
+            xhr.upload.onprogress = onUploadProgress;
+        }
+
+        if (request.hasOwnProperty('params')) {
+            paramsString = '';
+            for (paramName in request.params) {
+                if (request.params.hasOwnProperty(paramName)) {
+                    if (paramsString.length > 0) {
+                        paramsString += '&';
+                    }
+                    paramsString += encodeURIComponent(paramName) + '=' + encodeURIComponent(request.params[paramName]);
+                }
+            }
+        }
+        body = request.data;
+        url = request.url;
+        if (typeof body === 'undefined' && request.method && request.method.toUpperCase() === 'POST') {
+            body = paramsString;
+        } else if (typeof paramsString !== 'undefined') {
+            if (url.indexOf('?') > 0) {
+                url += '&' + paramsString;
+            } else {
+                url += '?' + paramsString;
+            }
+        }
+        xhr.open(request.method || 'GET', url, true);
+
+        xhr.setRequestHeader('Accept', 'application/json, text/plain, */*');
+        if (request.headers) {
+            for (header in request.headers) {
+                if (request.headers.hasOwnProperty(header)) {
+                    xhr.setRequestHeader(header, request.headers[header]);
+                }
+            }
+        }
+
+        xhr.send(body);
+    }
+
+    function snapscreenApiFactory(logger, accessTokenHolder) {
+        var timeLag = 0, baseUrl = 'https://api.snapscreen.com';
 
         function currentTimestamp() {
             return Date.now() - timeLag;
         }
 
-        function setAndGetLocaleIdentifier(value) {
+        function setOrGetBaseUrl() {
             if (arguments.length === 0) {
-                return localeIdentifier;
+                return baseUrl;
             }
-            localeIdentifier = value;
-            return localeIdentifier;
+            baseUrl = arguments[0];
+            return baseUrl;
         }
 
-        function http(request, resolve, reject, onUploadProgress) {
-            var xhr, url, header, paramsString, paramName, body;
-
-            function getResponseHeader(header) {
-                return xhr.getResponseHeader(header);
-            }
-
-            function onError() {
-                reject({
-                    xhr: xhr,
-                    data: ('response' in xhr) ? xhr.response : xhr.responseText,
-                    status: xhr.status
-                });
-            }
-
-            function onLoad() {
-                var response = ('response' in xhr) ? xhr.response : xhr.responseText, status = xhr.status;
-                //bug (http://bugs.jquery.com/ticket/1450)
-                if (status === 1223) {
-                    status = 204;
-                }
-                if (status >= 200 && status < 300) {
-                    if (request.responseType === 'json' && typeof response === 'string') {
-                        response = JSON.parse(response);
-                    }
-                    resolve({
-                        xhr: xhr,
-                        headers: getResponseHeader,
-                        data: response,
-                        status: status
-                    });
-                } else {
-                    onError();
-                }
-            }
-
-            xhr = new XMLHttpRequest();
-            if (request.responseType) {
-                try {
-                    xhr.responseType = request.responseType;
-                } catch (e) {
-                    if (request.responseType !== 'json') {
-                        throw e;
-                    }
-                }
-            }
-
-            xhr.onload = onLoad;
-            xhr.onerror = onError;
-            xhr.onabort = onError;
-            if (xhr.upload && typeof onUploadProgress === 'function') {
-                xhr.upload.onprogress = onUploadProgress;
-            }
-
-            if (request.hasOwnProperty('params')) {
-                paramsString = '';
-                for (paramName in request.params) {
-                    if (request.params.hasOwnProperty(paramName)) {
-                        if (paramsString.length > 0) {
-                            paramsString += '&';
-                        }
-                        paramsString += encodeURIComponent(paramName) + '=' + encodeURIComponent(request.params[paramName]);
-                    }
-                }
-            }
-            body = request.data;
-            url = request.url;
-            if (typeof body === 'undefined' && request.method && request.method.toUpperCase() === 'POST') {
-                body = paramsString;
-            } else if (typeof paramsString !== 'undefined') {
-                if (url.indexOf('?') > 0) {
-                    url += '&' + paramsString;
-                } else {
-                    url += '?' + paramsString;
-                }
-            }
-            xhr.open(request.method || 'GET', url, true);
-
-            xhr.setRequestHeader('Accept', 'application/json, text/plain, */*');
-            if (request.headers) {
-                for (header in request.headers) {
-                    if (request.headers.hasOwnProperty(header)) {
-                        xhr.setRequestHeader(header, request.headers[header]);
-                    }
-                }
-            }
-
-            xhr.send(body);
-        }
-
-        function api(request, resolve, reject, onUploadProgress) {
+        function exchange(request, resolve, reject, onUploadProgress) {
             accessTokenHolder.withAccessToken({
                 "resolve": function(accessToken) {
                     if (!request.hasOwnProperty('responseType')) {
@@ -293,21 +383,48 @@
             });
         }
 
-        timeLag = 0;
-        baseUrl = '${BASE_URL}';
-        if (baseUrl.startsWith('${BASE_URL')) {
-            baseUrl = 'https://api.snapscreen.com';
-        }
-
         return {
-            "http": http,
-            "api": api,
-            "currentTimestamp": currentTimestamp,
-            "localeIdentifier": setAndGetLocaleIdentifier
+            "exchange": exchange,
+            "baseUrl": setOrGetBaseUrl,
+            "currentTimestamp": currentTimestamp
         };
     }
 
-    function webSearchServiceFactory(snapscreen) {
+    function clipShareApiFactory(accessTokenHolder) {
+        var baseUrl = 'https://clip.farm';
+
+        function setOrGetBaseUrl() {
+            if (arguments.length === 0) {
+                return baseUrl;
+            }
+            baseUrl = arguments[0];
+            return baseUrl;
+        }
+
+        function exchange(request, resolve, reject, onUploadProgress) {
+            accessTokenHolder.withAccessToken({
+                "resolve": function(accessToken) {
+                    if (!request.hasOwnProperty('responseType')) {
+                        request.responseType = 'json';
+                    }
+                    request.headers = request.headers || {};
+                    request.headers.Authorization = 'Bearer ' + accessToken;
+                    if (!request.absolute) {
+                        request.url = baseUrl + request.url;
+                    }
+                    http(request, resolve, reject, onUploadProgress);
+                },
+                "reject": reject
+            });
+        }
+
+        return {
+            "exchange": exchange,
+            "baseUrl": setOrGetBaseUrl
+        };
+    }
+
+    function webSearchServiceFactory(snapscreenApi) {
         function normalizeWebSearchResult(resolve, itemMapper) {
             return function (response) {
                 var resultData = [], i, resultList;
@@ -376,7 +493,7 @@
         }
 
         function internalApiWebSearch(resourceType, itemMapper, request, resolve, reject) {
-            return snapscreen.api({
+            return snapscreenApi.exchange({
                 url: '/api/web-search/' + resourceType,
                 method: 'GET',
                 params: request
@@ -408,7 +525,7 @@
         };
     }
 
-    function snapServiceFactory(logger, snapscreen) {
+    function snapServiceFactory(logger, snapscreenApi) {
         function snapHttpHeaders(request) {
             var headers = {
                 "Content-type": 'application/octet-stream',
@@ -422,7 +539,7 @@
 
         function autoSnapHttpHeaders(request) {
             var headers = snapHttpHeaders(request);
-            headers['X-Snapscreen-Timestamp'] = snapscreen.currentTimestamp();
+            headers['X-Snapscreen-Timestamp'] = snapscreenApi.currentTimestamp();
             return headers;
         }
 
@@ -455,7 +572,7 @@
         }
 
         function snap(uri, request, headers, resolve, reject, onUploadProgress) {
-            snapscreen.api({
+            snapscreenApi.exchange({
                 "method": 'POST',
                 "url": uri,
                 "headers": headers(request),
@@ -481,7 +598,7 @@
                     "score": resultEntry.score
                 };
             }
-            snapscreen.api({
+            snapscreenApi.exchange({
                 "method": 'POST',
                 "url": '/api/tv-search/store-feedback',
                 "headers": {'content-type': 'application/json'},
@@ -734,9 +851,18 @@
     }
 
     function templateEngineFactory(templates) {
-        function loadTemplate(templateCode, target) {
+        function loadTemplate(templateCode, target, model) {
             var suffix = Date.now() + '_' + Math.round(10000000 * Math.random());
-            target.innerHTML = templates[templateCode].split(':{suffix}:').join(suffix);
+            if (model) {
+                model.suffix = suffix;
+            } else {
+                model = {
+                    suffix: suffix
+                };
+            }
+            target.innerHTML = templates[templateCode].replace(/:{(\w+)}:/g, function(match, name) {
+                return model[name];
+            });
             return function elementAccessor(id) {
                 return target.querySelector('#snapscreen' + suffix + id);
             };
@@ -798,7 +924,7 @@
         };
     }
 
-    function tvChannelServiceFactory(snapscreen, httpBlobCache) {
+    function tvChannelServiceFactory(snapscreenApi, httpBlobCache) {
         return {
             "resolveLiveImage": function (tvChannel, resolve, reject) {
                 var liveImage = tvChannel._links.liveImage;
@@ -806,7 +932,7 @@
                     if (liveImage.secured) {
                         var imgUrl = liveImage.href;
                         httpBlobCache.computeIfAbsent(imgUrl, function (cacheResolve, cacheReject) {
-                            return snapscreen.api({
+                            return snapscreenApi.exchange({
                                 method: 'GET',
                                 absolute: true,
                                 url: imgUrl,
@@ -825,12 +951,12 @@
         };
     }
 
-    function tsImageServiceFactory(snapscreen, httpBlobCache) {
+    function tsImageServiceFactory(snapscreenApi, httpBlobCache) {
         return {
             "downloadAtTimestamp": function (tvChannelId, timestampRef, resolve, reject) {
                 var uri = '/api/ts-images/' + tvChannelId + '/' + timestampRef + '/download';
                 httpBlobCache.computeIfAbsent(uri, function (cacheResolve, cacheReject) {
-                    return snapscreen.api({
+                    return snapscreenApi.exchange({
                         method: 'GET',
                         url: uri,
                         responseType: 'arraybuffer'
@@ -840,12 +966,12 @@
         };
     }
 
-    function adImageServiceFactory(snapscreen, httpBlobCache) {
+    function adImageServiceFactory(snapscreenApi, httpBlobCache) {
         return {
             "downloadAtTimeOffset": function (advertisementId, timeOffset, resolve, reject) {
                 var uri = '/api/ads/images/' + advertisementId + '/' + timeOffset + '/download';
                 httpBlobCache.computeIfAbsent(uri, function (cacheResolve, cacheReject) {
-                    return snapscreen.api({
+                    return snapscreenApi.exchange({
                         method: 'GET',
                         url: uri,
                         responseType: 'arraybuffer'
@@ -872,6 +998,66 @@
                     return result;
                 }
                 return sportEvent.sport + ' - ' + sportEvent.category + ' - ' + sportEvent.tournament;
+            }
+        };
+    }
+
+    function clipShareServiceFactory(clipShareApi) {
+        var storedPreview = {};
+        function loadPreview(params, resolve, reject) {
+            if ((params.tvChannelId && params.tvChannelId === storedPreview.tvChannelId &&
+                params.timestampRef && params.timestampRef === storedPreview.timestampRef) ||
+                params.advertisementId && params.advertisementId === storedPreview.advertisementId &&
+                params.timeOffset && params.timeOffset === storedPreview.timeOffset) {
+                resolve(storedPreview);
+            } else {
+                clipShareApi.exchange({
+                    url: '/api/clips/preview',
+                    method: 'POST',
+                    responseType: 'json',
+                    headers: {'content-type': 'application/x-www-form-urlencoded'},
+                    params: params
+                }, function (response) {
+                    storedPreview = params;
+                    storedPreview.data = response.data;
+                    resolve(response);
+                }, reject);
+            }
+        }
+        return {
+            shareTvClip: function shareTvClip(tvChannelId, timestampRefFrom, timestampRefTo, timestampRefThumb, resolve, reject) {
+                clipShareApi.exchange({
+                    url: '/api/clips/share',
+                    method: 'POST',
+                    responseType: 'json',
+                    headers: {'content-type': 'application/x-www-form-urlencoded'},
+                    params: {
+                        tvChannelId: tvChannelId,
+                        timestampRefFrom: timestampRefFrom,
+                        timestampRefTo: timestampRefTo,
+                        timestampRefThumb: timestampRefThumb
+                    }
+                }, resolve, reject);
+            },
+            previewTvClip: function previewTvClip(tvChannelId, timestampRef, resolve, reject) {
+                return loadPreview({tvChannelId: tvChannelId, timestampRef: timestampRef}, resolve, reject);
+            },
+            shareAdClip: function shareAdClip(advertisementId, timeOffsetFrom, timeOffsetTo, timeOffsetThumb, resolve, reject) {
+                clipShareApi.exchange({
+                    url: '/api/clips/share',
+                    method: 'POST',
+                    responseType: 'json',
+                    headers: {'content-type': 'application/x-www-form-urlencoded'},
+                    params: {
+                        advertisementId: advertisementId,
+                        timeOffsetFrom: timeOffsetFrom,
+                        timeOffsetTo: timeOffsetTo,
+                        timeOffsetThumb: timeOffsetThumb
+                    }
+                }, resolve, reject);
+            },
+            previewAdClip: function previewAdClip(advertisementId, timeOffset, resolve, reject) {
+                return loadPreview({advertisementId: advertisementId, timeOffset: timeOffset}, resolve, reject);
             }
         };
     }
@@ -981,9 +1167,7 @@
         this.showResults = function (target, results) {
             var template, collection, i;
 
-            if (snapComponent.parentNode === null) {
-                target.appendChild(snapComponent);
-            }
+            target.appendChild(snapComponent);
             template = templateEngine.load('results', snapComponent);
             collection = template('collection');
             for (i = 0; i < results.resultEntries.length; i++) {
@@ -993,10 +1177,19 @@
     }
 
     function DefaultNavigationBehavior(controller, snapComponent, snapService, templateEngine, options) {
-        var modal, modalTemplate, vibrate, vibrateDelegate, storedResult;
+        var modal, modalTemplate, vibrate, vibrateDelegate, storedResult, clipShareController = null;
+
+        function disposeController() {
+            if (clipShareController === null) {
+                controller.dispose();
+            } else {
+                clipShareController.dispose();
+                clipShareController = null;
+            }
+        }
 
         function close() {
-            controller.dispose();
+            disposeController();
             document.body.removeChild(modal);
         }
 
@@ -1009,9 +1202,11 @@
             if (controller.isActive()) {
                 return;
             }
-            if (snapComponent.parentNode) {
-                controller.appendTo(snapComponent.parentNode);
-            } else if (typeof options.navigator !== 'undefined' &&
+            if (clipShareController !== null) {
+                clipShareController.dispose();
+                clipShareController = null;
+            }
+            if (typeof options.navigator !== 'undefined' &&
                 typeof options.navigator.navigateToComponent === 'function') {
                 options.navigator.navigateToComponent(controller);
             } else {
@@ -1023,7 +1218,7 @@
         this.navigateToResults = function (result) {
             storedResult = result;
             var parent = snapComponent.parentNode;
-            controller.dispose();
+            disposeController();
             if (typeof options.navigator !== 'undefined' && typeof options.navigator.navigateToResults === 'function') {
                 if (modal.parentNode === document.body) {
                     document.body.removeChild(modal);
@@ -1038,7 +1233,7 @@
 
         this.navigateToResult = function (resultEntry) {
             var snapTimestamp, screenQuadrangle;
-            controller.dispose();
+            disposeController();
             if (modal.parentNode === document.body) {
                 document.body.removeChild(modal);
             }
@@ -1054,6 +1249,31 @@
                 options.navigator.navigateToResult(resultEntry, snapTimestamp, screenQuadrangle);
             } else if (typeof options.onResultEntry === 'function') {
                 options.onResultEntry(resultEntry, snapTimestamp, screenQuadrangle);
+            }
+        };
+
+        this.navigateToClipShare = function (resultEntry) {
+            disposeController();
+            modal.setAttribute('class', 'snapscreen-modal snapscreen-results');
+            if (modal.parentNode !== document.body) {
+                document.body.appendChild(modal);
+            }
+            modalTemplate('site').appendChild(snapComponent);
+            clipShareController = controller.createClipShareController(resultEntry);
+            clipShareController.appendTo(snapComponent);
+        };
+
+        this.navigateToCreatedClip = function(clip) {
+            if (modal.parentNode === document.body) {
+                disposeController();
+                document.body.removeChild(modal);
+            }
+            if (typeof options.navigator !== 'undefined' && typeof options.navigator.navigateToCreatedClip === 'function') {
+                options.navigator.navigateToCreatedClip(clip);
+            } else if (typeof options.onClipCreated === 'function') {
+                options.onClipCreated(clip);
+            } else {
+                window.location.href = clip._links.player.href;
             }
         };
 
@@ -1494,8 +1714,705 @@
         container.addEventListener('touchend', onTouchEnd);
     }
 
+    function RangePickerController() {
+        var container, maxPtr, maxOffset, maxValue, minPtr, minOffset, minValue, videoPosition, minDiff, maxDiff,
+            barWidth, handleHalfWidth, offsetRange, valueRange, settings, events, listeners, changeListener;
+
+        function offset(element, percent) {
+            element.style.left = (percent * offsetRange / 100) + "px";
+        }
+
+        function halfWidth(element) {
+            return element.offsetWidth / 2;
+        }
+
+        function width(element) {
+            return element.offsetWidth;
+        }
+
+        function contain(value) {
+            if (isNaN(value)) {
+                return value;
+            }
+            return Math.min(Math.max(0, value), 100);
+        }
+
+        function roundStep(value) {
+            var decimals, remainder, roundedValue, steppedValue;
+            remainder = (value - settings.floor) % settings.step;
+            steppedValue = remainder > (settings.step / 2) ? value + settings.step - remainder : value - remainder;
+            decimals = Math.pow(10, settings.precision);
+            roundedValue = steppedValue * decimals / decimals;
+            return parseFloat(roundedValue.toFixed(settings.precision));
+        }
+
+        function percentOffset(offset) {
+            return contain(((offset - minOffset) / offsetRange) * 100);
+        }
+
+        function percentValue(value) {
+            return contain(((value - minValue) / valueRange) * 100);
+        }
+
+        function dimensions() {
+            handleHalfWidth = halfWidth(minPtr);
+            barWidth = width(container);
+            minOffset = 0;
+            maxOffset = barWidth - width(minPtr);
+            minValue = settings.floor;
+            maxValue = settings.ceiling;
+            minDiff = settings.min;
+            maxDiff = settings.max;
+            valueRange = maxValue - minValue;
+            offsetRange = maxOffset - minOffset;
+        }
+
+        function setPointers() {
+            offset(minPtr, percentValue(settings.low));
+            offset(maxPtr, percentValue(settings.high));
+        }
+
+        function updateDOM() {
+            dimensions();
+            setPointers();
+        }
+
+        function createHandlerListeners(handle, ref, events) {
+            function onStart(event) {
+                handle.classList.add('active');
+                event.stopPropagation();
+                event.preventDefault();
+                document.addEventListener(events.move, onMove);
+                document.addEventListener(events.end, onEnd);
+            }
+
+            function onMove(event) {
+                var eventX, newOffset, newPercent, newValue, changed;
+                eventX = event.clientX || (typeof event.touches !== 'undefined' ? event.touches[0].clientX : void 0) || (typeof event.originalEvent !== 'undefined' ? typeof event.originalEvent.changedTouches !== 'undefined' ? event.originalEvent.changedTouches[0].clientX : void 0 : void 0) || 0;
+                newOffset = eventX - container.getBoundingClientRect().left - handleHalfWidth;
+                newOffset = Math.max(Math.min(newOffset, maxOffset), minOffset);
+                newPercent = percentOffset(newOffset);
+                newValue = minValue + (valueRange * newPercent / 100.0);
+                switch (ref) {
+                    case 'low':
+                        if (newValue + minDiff > settings.high) {
+                            if (newValue + minDiff >= maxValue) {
+                                return;
+                            }
+                            settings.high = newValue + minDiff;
+                        } else if (newValue + maxDiff < settings.high) {
+                            settings.high = newValue + maxDiff;
+                        }
+                        break;
+                    case 'high':
+                        if (settings.low > newValue - minDiff) {
+                            if (newValue - minDiff < minValue) {
+                                return;
+                            }
+                            settings.low = newValue - minDiff;
+                        } else if (settings.low < newValue - maxDiff) {
+                            settings.low = newValue - maxDiff;
+                        }
+                }
+                newValue = roundStep(newValue);
+                changed = settings[ref] !== newValue;
+                settings[ref] = newValue;
+                setPointers();
+                if (changed && changeListener) {
+                    changeListener(settings.low, settings.high, ref);
+                }
+            }
+
+            function onEnd () {
+                handle.classList.remove('active');
+                document.removeEventListener(events.move, onMove);
+                document.removeEventListener(events.end, onEnd);
+            }
+
+            return {
+                bind: function() {
+                    handle.addEventListener(events.start, onStart);
+                },
+                unbind: function() {
+                    handle.removeEventListener(events.start, onStart);
+                    handle.removeEventListener(events.move, onMove);
+                    handle.removeEventListener(events.end, onEnd);
+
+                    document.removeEventListener(events.move, onMove);
+                    document.removeEventListener(events.end, onEnd);
+                }
+            };
+        }
+
+        function bindHandlerListeners() {
+            listeners = [
+                createHandlerListeners(minPtr, 'low', events.mouse),
+                createHandlerListeners(minPtr, 'low', events.touch),
+                createHandlerListeners(maxPtr, 'high', events.mouse),
+                createHandlerListeners(maxPtr, 'high', events.touch)
+            ];
+
+            for (var i = 0; i < listeners.length; i++) {
+                listeners[i].bind();
+            }
+
+            window.addEventListener('resize', updateDOM);
+        }
+
+        function unbindHandlerListeners() {
+            if (listeners) {
+                for (var i = 0; i < listeners.length; i++) {
+                    listeners[i].unbind();
+                }
+            }
+
+            window.removeEventListener('resize', updateDOM);
+        }
+
+        events = {
+            mouse: {
+                start: 'mousedown',
+                move: 'mousemove',
+                end: 'mouseup'
+            },
+            touch: {
+                start: 'touchstart',
+                move: 'touchmove',
+                end: 'touchend'
+            }
+        };
+
+        this.settings = function(values) {
+            var floor = typeof values.floor === 'number' ? values.floor : 0;
+            var ceiling = values.ceiling;
+            settings = {
+                "floor": floor,
+                "ceiling": ceiling,
+                "step": typeof values.step === 'number' ? values.step : 1,
+                "precision": typeof values.precision === 'number' ? values.precision : 0,
+                "low": values.low,
+                "high": values.high,
+                "min": typeof values.min === 'number' ? values.min : 0,
+                "max": typeof values.max === 'number' ? values.max : ceiling - floor
+            };
+        };
+
+        this.changeListener = function(value) {
+            changeListener = value;
+        };
+
+        this.appendTo = function (element) {
+            unbindHandlerListeners();
+
+            container = element;
+            minPtr = element.childNodes[0];
+            maxPtr = element.childNodes[1];
+            videoPosition = element.childNodes[2];
+            videoPosition.style.display = 'none';
+            bindHandlerListeners();
+            setTimeout(updateDOM);
+        };
+
+        this.updateVideoPosition = function(position, duration) {
+            var positionStart = minPtr.offsetLeft + width(minPtr);
+            var positionEnd = maxPtr.offsetLeft - width(videoPosition);
+            videoPosition.style.left = (positionStart + (position / duration) * (positionEnd - positionStart)).toFixed(3) + "px";
+            videoPosition.style.display = 'block';
+        };
+
+        this.hideVideoPosition = function() {
+            videoPosition.style.display = 'none';
+        };
+
+        this.dispose = function () {
+            unbindHandlerListeners();
+            container = minPtr = maxPtr = videoPosition = listeners = null;
+        };
+    }
+
+    function SnapscreenClipShareController(resultEntry, clipShareService, analytics,
+                                           templateEngine, uiNavigator, customClipShareService) {
+        var template, container, poster, buttonBack, buttonPlay, buttonStop, buttonForward, buttonShare;
+        var galleryThumbs, rangePicker, rangePickerSettings, player, playerSource;
+        var processing = false, previewVisible = false, fragment, gallery, galleryThumbnails;
+        var initialSlide = 0, thumbDiff = 3, thumbsPerWindow = 10, windowSize = thumbsPerWindow * thumbDiff,
+            windowStart = 0, startOffset = 0, endOffset = windowSize - 1;
+
+        function showFeedbackMessage(message) {
+            var feedback = template('feedback');
+            if (message) {
+                feedback.innerText = message;
+                feedback.style.display = 'block';
+            } else {
+                feedback.style.display = 'none';
+            }
+        }
+
+        function setProcessingStatus(value) {
+            processing = value;
+            if (value) {
+                buttonShare.setAttribute('disabled', 'disabled');
+            } else {
+                buttonShare.removeAttribute('disabled');
+            }
+        }
+
+        function onClipCreated(response) {
+            analytics.clipShareCreated();
+            setProcessingStatus(false);
+            showFeedbackMessage();
+            uiNavigator.navigateToCreatedClip(response.data);
+        }
+
+        function onClipCreateFailed(reason) {
+            analytics.clipShareCreateFailed();
+            setProcessingStatus(false);
+            if (reason.status === 401 || reason.status === 403) {
+                showFeedbackMessage('Authentication failed, please re-authenticate to continue.');
+            } else {
+                showFeedbackMessage('Failed to share clip. Please try again');
+            }
+        }
+
+        function shareClip(event) {
+            var posterTime, service;
+            if (event) {
+                event.preventDefault();
+            }
+
+            if (processing) {
+                return;
+            }
+
+            analytics.clipShareCreate();
+            setProcessingStatus(true);
+            showFeedbackMessage();
+            stopVideo();
+
+            if (fragment.posterTime) {
+                posterTime = fragment.posterTime;
+            } else {
+                posterTime = fragment.startTime;
+            }
+
+            if (customClipShareService) {
+                service = customClipShareService;
+            } else {
+                service = clipShareService;
+            }
+
+            if (resultEntry.advertisement) {
+                service.shareAdClip(resultEntry.advertisement.id, fragment.startTime, fragment.endTime, posterTime,
+                    onClipCreated, onClipCreateFailed);
+            } else {
+                service.shareTvClip(resultEntry.tvChannel.id, fragment.startTime, fragment.endTime, posterTime,
+                    onClipCreated, onClipCreateFailed);
+            }
+        }
+
+        function setDisabled(element, disabled) {
+            if (disabled) {
+                element.classList.add('snp-btn-disabled');
+            } else {
+                element.classList.remove('snp-btn-disabled');
+            }
+        }
+
+        function setVisible(element, visible) {
+            if (visible) {
+                element.style.display = 'block';
+            } else {
+                element.style.display = 'none';
+            }
+        }
+
+        function setPreviewVisible(visible) {
+            if (previewVisible === visible) {
+                return;
+            }
+            previewVisible = visible;
+            var element = template('player').parentNode;
+            if (visible) {
+                analytics.clipSharePreviewPlay();
+                element.classList.add('snp-gallery-preview');
+            } else {
+                analytics.clipSharePreviewClosed();
+                element.classList.remove('snp-gallery-preview');
+            }
+        }
+
+        function updatePoster(image) {
+            if (poster) {
+                poster.src = image;
+            }
+        }
+
+        function updateFragment() {
+            setDisabled(buttonBack, windowStart === 0);
+            setDisabled(buttonForward, windowStart + windowSize >= gallery.length);
+
+            var startIndex = Math.min(windowStart + startOffset, gallery.length - 1);
+            var startFrame = gallery[startIndex];
+            var startTime = startFrame.timestampRef || startFrame.timeOffset;
+
+            var endIndex = Math.min(windowStart + endOffset, gallery.length - 1);
+            var endFrame = gallery[endIndex];
+            var endTime = endFrame.timestampRef || endFrame.timeOffset;
+
+            var fragmentUrl = startFrame._links.fragment.href;
+            var index = fragmentUrl.lastIndexOf('?d=');
+            if (index > 0) {
+                fragmentUrl = fragmentUrl.substring(0, index);
+            }
+
+            fragment = {
+                href: fragmentUrl + '?d=' + (endTime - startTime),
+                poster: startFrame._links.thumbnail.href,
+                posterTime: startTime,
+                startTime: startTime,
+                endTime: endTime
+            };
+
+            if (previewVisible) {
+                stopVideo();
+                setPreviewVisible(false);
+                rangePicker.hideVideoPosition();
+            }
+        }
+
+        function onThumbGallerySlideChange() {
+            var oldWindowStart = windowStart;
+            if (this.activeIndex + thumbsPerWindow > galleryThumbnails.length) {
+                windowStart = Math.max((galleryThumbnails.length - thumbsPerWindow) * thumbDiff, 0);
+            } else {
+                windowStart = this.activeIndex * thumbDiff;
+            }
+            if (oldWindowStart !== windowStart) {
+                updatePoster(gallery[windowStart + startOffset]._links.thumbnail.href);
+                updateFragment();
+            }
+        }
+
+        function onRangeChanged(low, high, ref) {
+            low = parseInt(low);
+            high = parseInt(high);
+
+            if (low === startOffset && high === endOffset) {
+                return;
+            }
+
+            if (ref === 'low' && startOffset !== low) {
+                updatePoster(gallery[windowStart + low]._links.thumbnail.href);
+            } else if (ref === 'high' && endOffset !== high) {
+                var index = Math.min(windowStart + high, gallery.length - 1);
+                updatePoster(gallery[index]._links.thumbnail.href);
+            }
+            startOffset = low;
+            endOffset = high;
+            updateFragment();
+        }
+
+        function playVideo(event) {
+            if (event) {
+                event.preventDefault();
+            }
+            if (player) {
+                setPreviewVisible(true);
+
+                if (playerSource.file !== fragment.href) {
+                    playerSource = {
+                        "file": fragment.href,
+                        "image": fragment.poster
+                    };
+                    player.load(playerSource);
+                }
+                player.play();
+                onVideoStarted();
+            }
+        }
+
+        function stopVideo(event) {
+            if (event) {
+                event.preventDefault();
+            }
+            if (player) {
+                player.pause();
+                onVideoStopped();
+            }
+        }
+
+        function onVideoStarted() {
+            if (previewVisible) {
+                setVisible(buttonPlay, false);
+                setVisible(buttonStop, true);
+            }
+        }
+
+        function onVideoStopped() {
+            if (previewVisible) {
+                setVisible(buttonPlay, true);
+                setVisible(buttonStop, false);
+            }
+        }
+
+        function onVideoTimeChanged(event) {
+            if (previewVisible && rangePicker) {
+                rangePicker.updateVideoPosition(event.position, event.duration);
+            }
+        }
+
+        function createControls() {
+            template = templateEngine.load('clipShare', container);
+
+            poster = template('poster');
+            buttonBack = template('back');
+            buttonBack.addEventListener('click', moveWindowBack);
+            buttonPlay = template('play');
+            buttonPlay.addEventListener('click', playVideo);
+            buttonStop = template('stop');
+            buttonStop.addEventListener('click', stopVideo);
+            buttonForward = template('forward');
+            buttonForward.addEventListener('click', moveWindowForward);
+            buttonShare = template('share');
+            buttonShare.addEventListener('click', shareClip);
+
+            setDisabled(buttonBack, true);
+            setDisabled(buttonForward, true);
+            setDisabled(buttonPlay, true);
+            setVisible(buttonStop, false);
+            showFeedbackMessage();
+
+            var galleryContainer = template('thumb'), model = {}, frame = null, target = document.createElement('DIV'), i;
+            for (i = 0; i < galleryThumbnails.length; i ++) {
+                frame = galleryThumbnails[i];
+                model.href = frame._links.thumbnail.href;
+                templateEngine.load('galleryItem', target, model);
+                while (target.childNodes.length > 0) {
+                    galleryContainer.appendChild(target.childNodes[0]);
+                }
+            }
+
+            galleryThumbs = new Swiper(template('thumb').parentNode, {
+                lazy: {
+                    loadPrevNext: true,
+                    loadPrevNextAmount: Math.floor(thumbsPerWindow / 2)
+                },
+                preloadImages: false,
+                initialSlide: initialSlide,
+                slidesPerView: thumbsPerWindow,
+                watchSlidesVisibility: true,
+                on: {
+                    slideChange: onThumbGallerySlideChange
+                }
+            });
+
+            rangePicker = new RangePickerController();
+            rangePicker.settings(rangePickerSettings);
+            rangePicker.changeListener(onRangeChanged);
+            rangePicker.appendTo(template('range'));
+
+            player = jwplayer(template('player').getAttribute('id'));
+            player.setup({
+                "file": playerSource.file,
+                "image": playerSource.image,
+                "height": 'auto',
+                "width": '100%',
+                "autostart": false,
+                "preload": 'none',
+                "mute": false
+            });
+            player.on('play', onVideoStarted);
+            player.on('pause', onVideoStopped);
+            player.on('complete', onVideoStopped);
+            player.on('time', onVideoTimeChanged);
+
+            setDisabled(buttonBack, windowStart === 0);
+            setDisabled(buttonForward, windowStart + windowSize >= gallery.length);
+            setDisabled(buttonPlay, false);
+            setVisible(buttonPlay, true);
+            setVisible(buttonStop, false);
+
+            updatePoster(fragment.poster);
+        }
+
+        function findFrameIndex(time) {
+            var low = 0, high = gallery.length - 1, mid, midValue;
+            while (low <= high) {
+                mid = (low + high) >>> 1;
+                midValue = gallery[mid].timestampRef || gallery[mid].timeOffset;
+                if (midValue > time) {
+                    high = mid - 1;
+                } else if (midValue < time) {
+                    low = mid + 1;
+                } else {
+                    return mid;
+                }
+            }
+            return low;
+        }
+
+        function onPreviewLoaded(response) {
+            var frame;
+            if (response.data && response.data._embedded && response.data._embedded.frameList &&
+                Array.isArray(response.data._embedded.frameList) && response.data._embedded.frameList.length > 0) {
+                analytics.clipShareOpened();
+
+                gallery = response.data._embedded.frameList;
+                if (gallery.length <= 10) {
+                    thumbDiff = 1;
+                    thumbsPerWindow = windowSize = gallery.length;
+                } else if (gallery.length <= 20) {
+                    thumbDiff = 2;
+                    thumbsPerWindow = Math.ceil(gallery.length / thumbDiff);
+                    windowSize = thumbsPerWindow * thumbDiff;
+                } else if (gallery.length <= 30) {
+                    thumbDiff = 3;
+                    thumbsPerWindow = Math.ceil(gallery.length / 3);
+                    windowSize = thumbsPerWindow * thumbDiff;
+                }
+
+                galleryThumbnails = [];
+                for (var i = 0; i < response.data._embedded.frameList.length; i += thumbDiff) {
+                    galleryThumbnails.push(response.data._embedded.frameList[i]);
+                }
+
+                if (response.data._links && response.data._links.fragment && response.data._links.thumbnail) {
+                    fragment = extend({
+                        poster: response.data._links.thumbnail.href,
+                        posterTime: resultEntry.timestampRef || resultEntry.timeOffset
+                    }, response.data._links.fragment);
+                } else if (resultEntry._links && resultEntry._links.fragment && resultEntry._links.thumbnail) {
+                    fragment = extend({
+                        poster: resultEntry._links.thumbnail.href,
+                        posterTime: resultEntry.timestampRef || resultEntry.timeOffset
+                    }, resultEntry._links.fragment);
+                } else {
+                    startOffset = findFrameIndex(resultEntry.timestampRef || resultEntry.timeOffset);
+                    endOffset = Math.max(0, startOffset - 15);
+                    frame = gallery[endOffset];
+                    var fragmentUrl = frame._links.fragment.href;
+                    var index = fragmentUrl.lastIndexOf('?d=');
+                    if (index > 0) {
+                        fragmentUrl = fragmentUrl.substring(0, index);
+                    }
+                    fragment = {
+                        href: fragmentUrl + "?d=20000",
+                        poster: gallery[startOffset]._links.thumbnail.href,
+                        posterTime: resultEntry.timestampRef || resultEntry.timeOffset,
+                        startTime: frame.timestampRef || frame.timeOffset,
+                        endTime: (frame.timestampRef || frame.timeOffset) + 20000
+                    };
+                }
+
+                startOffset = findFrameIndex(fragment.startTime);
+                initialSlide = Math.floor(startOffset / thumbDiff);
+                if (initialSlide + thumbsPerWindow > galleryThumbnails.length) {
+                    windowStart = Math.max((galleryThumbnails.length - thumbsPerWindow) * thumbDiff, 0);
+                } else {
+                    windowStart = initialSlide * thumbDiff;
+                }
+                startOffset = startOffset - windowStart;
+                endOffset = findFrameIndex(fragment.endTime) - windowStart;
+                if (endOffset + 2 === windowSize) {
+                    endOffset = windowSize - 1;
+                }
+
+                playerSource = {
+                    "file": fragment.href,
+                    "image": fragment.poster
+                };
+
+                rangePickerSettings = {
+                    "floor": 0,
+                    "ceiling": windowSize - 1,
+                    "step": 1,
+                    "precision": 0,
+                    "low": startOffset,
+                    "high": endOffset,
+                    "min": Math.round(response.data._embedded.settings.minDuration / 1000),
+                    "max": Math.round(response.data._embedded.settings.maxDuration / 1000)
+                };
+
+                setTimeout(createControls);
+            } else {
+                onPreviewLoadFailed();
+            }
+        }
+
+        function onPreviewLoadFailed(response) {
+            if (typeof response === 'undefined') {
+                analytics.clipShareNotFound();
+            } else {
+                analytics.clipShareOpenFailed();
+            }
+            template = templateEngine.load('clipShareError', container);
+        }
+
+        function moveWindowBack(event) {
+            if (event) {
+                event.preventDefault();
+            }
+            windowStart = Math.max(windowStart - windowSize, 0);
+            galleryThumbs.slideTo(Math.floor(windowStart / thumbDiff), 0);
+            updatePoster(gallery[windowStart + startOffset]._links.thumbnail.href);
+            updateFragment();
+        }
+
+        function moveWindowForward(event) {
+            if (event) {
+                event.preventDefault();
+            }
+            windowStart = windowStart + windowSize;
+            var slideIndex = Math.floor(windowStart / thumbDiff);
+            if (slideIndex + thumbsPerWindow > galleryThumbnails.length) {
+                slideIndex = Math.max(galleryThumbnails.length - thumbsPerWindow, 0);
+                windowStart = slideIndex * thumbDiff;
+            }
+            galleryThumbs.slideTo(slideIndex, 0);
+            updatePoster(gallery[windowStart + startOffset]._links.thumbnail.href);
+            updateFragment();
+        }
+
+        this.appendTo = function (target) {
+            container = target;
+
+            template = templateEngine.load('clipShareLoading', container);
+
+            if (resultEntry.tvChannel && resultEntry.timestampRef) {
+                clipShareService.previewTvClip(resultEntry.tvChannel.id, resultEntry.timestampRef,
+                    onPreviewLoaded, onPreviewLoadFailed);
+            } else if (resultEntry.advertisement && resultEntry.timeOffset) {
+                clipShareService.previewAdClip(resultEntry.advertisement.id, resultEntry.timeOffset,
+                    onPreviewLoaded, onPreviewLoadFailed);
+            }
+        };
+
+        this.dispose = function() {
+            if (galleryThumbs) {
+                galleryThumbs.destroy();
+                galleryThumbs = null;
+            }
+            if (rangePicker) {
+                rangePicker.dispose();
+                rangePickerSettings = null;
+                rangePicker = null;
+            }
+            if (player) {
+                player.remove();
+                player = null;
+            }
+            if (container) {
+                analytics.clipShareClosed();
+                container.innerHTML = '';
+                container = null;
+            }
+            gallery = galleryThumbnails = poster = template = null;
+            buttonBack = buttonPlay = buttonStop = buttonForward = buttonShare = null;
+        };
+    }
+
     function SnapscreenSnapViewController(logger, snapService, blobService, sportEventService, tvChannelService,
-                                          tsImageService, adImageService, options) {
+                                          tsImageService, adImageService, clipShareService, analytics, options) {
         var self = this, active = false, snapTimestamp = 0, snapComponent, searchResults, resultsSnapButton,
             videoDevices, zoom, video, viewFrame, checkCameraTimeout, autoSnapTimeout, autoSnapStatus, currentStream,
             storage, blocked, errorMessage, feedbackMessage, uiNavigator, uiBlocker, templateEngine,
@@ -1585,17 +2502,20 @@
             feedbackMessage.hide();
             result.snapTimestamp = snapTimestamp;
             if (result.resultEntries.length) {
+                analytics.snapViewSnapResult(Date.now() - snapTimestamp);
                 delegateEvent('onResult', result);
                 uiNavigator.navigateToResults(result);
             } else {
+                analytics.snapViewSnapNegative(Date.now() - snapTimestamp);
                 errorMessage.show(options.messages.noResults);
                 delegateEvent('onNoResult', result);
             }
         }
 
         function onSearchFailed(error) {
-            uiBlocker.unblock();
+            analytics.snapViewSnapFailed(Date.now() - snapTimestamp);
             feedbackMessage.hide();
+            uiBlocker.unblock();
             errorMessage.show(options.messages.failWithError);
             delegateEvent('onError', error);
         }
@@ -1607,6 +2527,7 @@
         }
 
         function onDataReady(blobMetadata) {
+            analytics.snapViewSnap();
             snapTimestamp = Date.now();
             errorMessage.hide();
             feedbackMessage.show(options.messages.uploadingImage);
@@ -1886,12 +2807,16 @@
             return active;
         };
         this.appendTo = function (target) {
+            analytics.snapViewOpened();
             active = true;
             (target.append || target.appendChild).call(target, snapComponent);
             prepareView();
         };
         this.dispose = function () {
-            active = false;
+            if (active) {
+                analytics.snapViewClosed();
+                active = false;
+            }
             if (snapComponent.parentNode) {
                 snapComponent.parentNode.removeChild(snapComponent);
                 snapComponent.innerHTML = '';
@@ -1907,9 +2832,16 @@
         this.createSnapButton = function () {
             return new SnapButton();
         };
+        this.createClipShareController = function(resultEntry) {
+            return new SnapscreenClipShareController(resultEntry, clipShareService, analytics,
+                templateEngine, uiNavigator, options.clipShareService);
+        };
         this.showResults = function(target, results) {
             searchResults.showResults(target, results);
             resultsSnapButton.appendTo(snapComponent);
+        };
+        this.showClipShare = function (resultEntry) {
+            uiNavigator.navigateToClipShare(resultEntry);
         };
 
         options = extend({
@@ -1929,37 +2861,92 @@
         }, options.messages);
         options.templates = extend({
             "camera": '<div class="tv-search-camera"><video id="snapscreen:{suffix}:video" width="100%" height="100%" autoplay muted playsInline></video>' +
-            '<div id="snapscreen:{suffix}:frame" class="tv-search-frame"></div>' +
-            '<div id="snapscreen:{suffix}:zoom" class="zoom-slider"><i class="zoom-pointer"></i><hr/></div>' +
-            '<button id="snapscreen:{suffix}:snap" class="tv-search-button"><i class="icon-camera icon"></i></button>' +
-            '<button id="snapscreen:{suffix}:switch" class="switch-camera-button"><i class="icon-refresh icon"></i></button>' +
-            '</div>',
+                '<div id="snapscreen:{suffix}:frame" class="tv-search-frame"></div>' +
+                '<div id="snapscreen:{suffix}:zoom" class="zoom-slider"><i class="zoom-pointer"></i><hr/></div>' +
+                '<button id="snapscreen:{suffix}:snap" class="tv-search-button"><i class="icon-camera icon"></i></button>' +
+                '<button id="snapscreen:{suffix}:switch" class="switch-camera-button"><i class="icon-refresh icon"></i></button>' +
+                '</div>',
             "file": '<div class="tv-search-file"><input id="snapscreen:{suffix}:file" class="tv-search-input" type="file" accept="image/*;capture=camera"/>' +
-            '<label id="snapscreen:{suffix}:label" class="tv-search-label" for="snapscreen:{suffix}:file">' +
-            '<div><i class="icon-camera icon"></i><span>Click to access your camera!</span></div></label></div>',
+                '<label id="snapscreen:{suffix}:label" class="tv-search-label" for="snapscreen:{suffix}:file">' +
+                '<div><i class="icon-camera icon"></i><span>Click to access your camera!</span></div></label></div>',
             "button": '<input id="snapscreen:{suffix}:file" class="tv-search-input" type="file" accept="image/*;capture=camera"/>' +
-            '<label id="snapscreen:{suffix}:label" class="tv-search-button" for="snapscreen:{suffix}:file">' +
-            '<i class="icon-camera icon"></i>' +
-            '</label>',
+                '<label id="snapscreen:{suffix}:label" class="tv-search-button" for="snapscreen:{suffix}:file">' +
+                '<i class="icon-camera icon"></i>' +
+                '</label>',
             "modal": '<div id="snapscreen:{suffix}:site">' +
-            '<a id="snapscreen:{suffix}:close" class="close"></a>' +
-            '</div>',
-            "results": '<div class="collection with-header" id="snapscreen:{suffix}:collection">' +
-            '<div class="collection-header">Please choose the best matching result</div></div>',
+                '<a id="snapscreen:{suffix}:close" class="close"></a>' +
+                '</div>',
+            "results": '<div class="snapscreen-modal-header">Please choose the best matching result</div>' +
+                '<div class="collection with-header" id="snapscreen:{suffix}:collection"></div>',
             "tutorial": '<div class="dialog dialog--open">' +
-            '<div class="dialog__overlay"></div>' +
-            '<div class="dialog__content">' +
-            '<input id="snapscreen:{suffix}:file" class="tv-search-input" type="file" accept="image/*;capture=camera"/>' +
-            '<label id="snapscreen:{suffix}:label" for="snapscreen:{suffix}:file" class="tutorial-label">' +
-            '<div class="tutorial-content">' +
-            '<h3 class="tutorial-title">Zoom and focus on your TV-screen.</h3>' +
-            '<div class="tutorial-picto"><img src="/images/tutorial.png" alt=""/></div>' +
-            '<button class="button button-cta" data-dialog-close="">Get started</button>' +
-            '</div>' +
-            '</label>' +
-            '</div>' +
-            '</div>',
-            "waiting": '<div class="tv-search-feedback">Getting access to the camera...</div>'
+                '<div class="dialog__overlay"></div>' +
+                '<div class="dialog__content">' +
+                '<input id="snapscreen:{suffix}:file" class="tv-search-input" type="file" accept="image/*;capture=camera"/>' +
+                '<label id="snapscreen:{suffix}:label" for="snapscreen:{suffix}:file" class="tutorial-label">' +
+                '<div class="tutorial-content">' +
+                '<h3 class="tutorial-title">Zoom and focus on your TV-screen.</h3>' +
+                '<div class="tutorial-picto"><img src="/images/tutorial.png" alt=""/></div>' +
+                '<button class="button button-cta" data-dialog-close="">Get started</button>' +
+                '</div>' +
+                '</label>' +
+                '</div>' +
+                '</div>',
+            "waiting": '<div class="tv-search-feedback">Getting access to the camera...</div>',
+            "clipShareLoading": '<div class="snapscreen-modal-header">Loading clip data</div>' +
+                '<div class="snapscreen clipshare">' +
+                '<div class="snp-gallery snp-gallery-main snp-gallery-loading"><div class="swiper-lazy-preloader"></div></div>' +
+                '<div class="snp-gallery snp-gallery-thumb"></div>' +
+                '<div class="snp-trim-tools">' +
+                '<div class="snp-btn-back snp-btn-disabled"></div>' +
+                '<div class="snp-btn-play snp-btn-disabled"></div>' +
+                '<div class="snp-btn-forward snp-btn-disabled"></div>' +
+                '</div>' +
+                '<button class="snp-btn-share" type="submit" disabled><span>Loading...</span></button>' +
+                '</div>',
+            "clipShare": '<div class="snapscreen-modal-header">Create and share your clip</div>' +
+                '<div class="snapscreen clipshare">' +
+                '<div class="snp-gallery snp-gallery-main">' +
+                '<div id="snapscreen:{suffix}:player"></div>' +
+                '<div class="swiper-container"><div class="swiper-wrapper"><div class="swiper-slide">' +
+                '<img id="snapscreen:{suffix}:poster" class="swiper-lazy" />' +
+                '</div></div></div>' +
+                '</div>' +
+                '<div class="snp-gallery snp-gallery-thumb"><div class="swiper-container">' +
+                '<div id="snapscreen:{suffix}:thumb" class="swiper-wrapper"></div>' +
+                '<div id="snapscreen:{suffix}:range" class="snp-range-picker">' +
+                '<div class="snp-handle snp-low"></div><div class="snp-handle snp-high"></div>' +
+                '<div class="snp-video-position"></div></div>' +
+                '</div></div>' +
+                '<div class="snp-trim-tools">' +
+                '<div id="snapscreen:{suffix}:back" class="snp-btn-back"></div>' +
+                '<div id="snapscreen:{suffix}:play" class="snp-btn-play"></div>' +
+                '<div id="snapscreen:{suffix}:stop" class="snp-btn-stop"></div>' +
+                '<div id="snapscreen:{suffix}:forward" class="snp-btn-forward"></div>' +
+                '</div>' +
+                '<div id="snapscreen:{suffix}:feedback" class="snp-form-error"></div>' +
+                '<button id="snapscreen:{suffix}:share" class="snp-btn-share" type="button">' +
+                '<span>Share clip</span>'+
+                '<figure class="snp-btn-addon"><svg style="width:24px;height:24px" viewBox="0 0 24 24">'+
+                '<path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z"></path>'+
+                '</svg></figure>'+
+                '</button>' +
+                '</div>',
+            "clipShareError": '<div class="snapscreen-modal-header">Clip is not available</div>' +
+                '<div class="snapscreen clipshare">' +
+                '<div class="snp-gallery snp-gallery-main">' +
+                '<p class="snp-gallery-no-clip">Sorry, but the clip that you requested is not available any more.</p></div>' +
+                '<div class="snp-gallery snp-gallery-thumb"></div>' +
+                '<div class="snp-trim-tools">' +
+                '<div class="snp-btn-back snp-btn-disabled"></div>' +
+                '<div class="snp-btn-play snp-btn-disabled"></div>' +
+                '<div class="snp-btn-forward snp-btn-disabled"></div>' +
+                '</div>' +
+                '<button class="snp-btn-share snp-btn-disabled" type="submit"><span>Share clip</span></button>' +
+                '</div>',
+            "galleryItem": '<div class="swiper-slide">' +
+                '<img data-src=":{href}:" alt="" class="swiper-lazy"/>' +
+                '<div class="swiper-lazy-preloader"></div>' +
+                '</div>'
         }, options.templates);
 
         snapComponent = document.createElement('div');
@@ -1980,19 +2967,23 @@
         storage = (typeof Storage !== 'undefined') ? localStorage : {snapscreenTvSearchVisited: true};
 
         replaceBlocker();
+        analytics.sdkInitialized();
     }
 
     var logger = loggerFactory(),
         accessTokenHolder = accessTokenHolderFactory(logger),
-        snapscreen = snapscreenFactory(logger, accessTokenHolder),
-        webSearchService = webSearchServiceFactory(snapscreen),
-        snapService = snapServiceFactory(logger, snapscreen),
+        snapscreenApi = snapscreenApiFactory(logger, accessTokenHolder),
+        clipShareApi = clipShareApiFactory(accessTokenHolder),
+        webSearchService = webSearchServiceFactory(snapscreenApi),
+        snapService = snapServiceFactory(logger, snapscreenApi),
         blobService = blobServiceFactory(logger),
         httpBlobCache = httpBlobCacheFactory(),
-        tvChannelService = tvChannelServiceFactory(snapscreen, httpBlobCache),
+        tvChannelService = tvChannelServiceFactory(snapscreenApi, httpBlobCache),
         sportEventService = sportEventServiceFactory(),
-        tsImageService = tsImageServiceFactory(snapscreen, httpBlobCache),
-        adImageService = adImageServiceFactory(snapscreen, httpBlobCache);
+        tsImageService = tsImageServiceFactory(snapscreenApi, httpBlobCache),
+        adImageService = adImageServiceFactory(snapscreenApi, httpBlobCache),
+        clipShareService = clipShareServiceFactory(clipShareApi),
+        analytics = analyticsFactory();
 
     /**
      * Snapscreen SDK module.
@@ -2000,29 +2991,29 @@
      * @module SnapscreenKit
      */
     scope.SnapscreenKit = {
-        "http": snapscreen.http,
-        "api": snapscreen.api,
+        "http": http,
+        "api": snapscreenApi,
+        "clipShareApi": clipShareApi,
         "loggingHandler": logger.handler,
         "accessTokenHolder": accessTokenHolder,
-        "localeIdentifier": snapscreen.localeIdentifier,
-        "currentSnapscreenTimestamp": snapscreen.currentTimestamp,
         "tvSnapViewController": function createSnapscreenTvSnapViewController(options) {
             return new SnapscreenSnapViewController(logger, snapService.epg, blobService, sportEventService,
-                tvChannelService, tsImageService, adImageService, options);
+                tvChannelService, tsImageService, adImageService, clipShareService, analytics, options);
         },
         "sportSnapViewController": function createSnapscreenSportSnapViewController(options) {
             return new SnapscreenSnapViewController(logger, snapService.sport, blobService, sportEventService,
-                tvChannelService, tsImageService, adImageService, extend({
+                tvChannelService, tsImageService, adImageService, clipShareService, analytics, extend({
                     "cssClass": 'snapscreen snpbet',
                     "noEntryImage": '/images/bet/header-gradient.png'
                 }, options));
         },
         "adsSnapViewController": function createSnapscreenAdsSnapViewController(options) {
             return new SnapscreenSnapViewController(logger, snapService.ads, blobService, sportEventService,
-                tvChannelService, tsImageService, adImageService, options);
+                tvChannelService, tsImageService, adImageService, clipShareService, analytics, options);
         },
         "webSearchService": webSearchService,
         "tvChannelService": tvChannelService,
-        "sportEventService": sportEventService
+        "sportEventService": sportEventService,
+        "clipShareService": clipShareService
     };
 }(window));

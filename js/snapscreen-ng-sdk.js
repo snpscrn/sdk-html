@@ -33,16 +33,23 @@ angular.module('snapscreen-sdk', [])
                 },
                 "api": function (request) {
                     return $q(function (resolve, reject) {
-                        snapscreenKit.api(request, resolve, reject);
+                        snapscreenKit.api.exchange(request, resolve, reject);
+                    });
+                },
+                "clipShareApi": function (request) {
+                    return $q(function (resolve, reject) {
+                        snapscreenKit.clipShareApi.exchange(request, resolve, reject);
                     });
                 },
                 "accessToken": snapscreenKit.accessTokenHolder.accessToken,
-                "currentSnapscreenTimestamp": snapscreenKit.currentSnapscreenTimestamp,
+                "currentSnapscreenTimestamp": snapscreenKit.api.currentTimestamp,
                 "webSearchService": snapscreenKit.webSearchService,
                 "tvChannelService": snapscreenKit.tvChannelService,
                 "sportEventService": snapscreenKit.sportEventService,
+                "clipShareService": snapscreenKit.clipShareService,
                 "tvSnapViewController": snapscreenKit.tvSnapViewController,
-                "sportSnapViewController": snapscreenKit.sportSnapViewController
+                "sportSnapViewController": snapscreenKit.sportSnapViewController,
+                "adsSnapViewController": snapscreenKit.adsSnapViewController
             };
         }];
     }])

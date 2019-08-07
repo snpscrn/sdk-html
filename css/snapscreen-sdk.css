@@ -3,7 +3,7 @@
  * @brief a style sheet required to correctly present UI components of the Snapscreen SDK.
  * @copyright 2016 Snapscreen. All rights reserved.
  */
-@-webkit-keyframes anim-open {
+@-webkit-keyframes snp-anim-open {
     0% {
         opacity: 0;
         -webkit-transform: scale3d(1.1, 1.1, 1);
@@ -22,7 +22,7 @@
     }
 }
 
-@-moz-keyframes anim-open {
+@-moz-keyframes snp-anim-open {
     0% {
         opacity: 0;
         -webkit-transform: scale3d(1.1, 1.1, 1);
@@ -41,7 +41,7 @@
     }
 }
 
-@keyframes anim-open {
+@keyframes snp-anim-open {
     0% {
         opacity: 0;
         -webkit-transform: scale3d(1.1, 1.1, 1);
@@ -60,7 +60,7 @@
     }
 }
 
-@-webkit-keyframes anim-close {
+@-webkit-keyframes snp-anim-close {
     0% {
         opacity: 1;
     }
@@ -74,7 +74,7 @@
     }
 }
 
-@-moz-keyframes anim-close {
+@-moz-keyframes snp-anim-close {
     0% {
         opacity: 1;
     }
@@ -88,7 +88,7 @@
     }
 }
 
-@keyframes anim-close {
+@keyframes snp-anim-close {
     0% {
         opacity: 1;
     }
@@ -99,6 +99,15 @@
         -ms-transform: scale3d(0.9, 0.9, 1);
         -o-transform: scale3d(0.9, 0.9, 1);
         transform: scale3d(0.9, 0.9, 1);
+    }
+}
+
+@keyframes snp-fade-in {
+    from {
+        opacity: 0
+    }
+    to {
+        opacity: 1
     }
 }
 
@@ -200,11 +209,11 @@
 }
 
 .snapscreen .dialog--open .dialog__content {
-    -webkit-animation: anim-open;
-    -moz-animation: anim-open;
-    -ms-animation: anim-open;
-    -o-animation: anim-open;
-    animation: anim-open;
+    -webkit-animation: snp-anim-open;
+    -moz-animation: snp-anim-open;
+    -ms-animation: snp-anim-open;
+    -o-animation: snp-anim-open;
+    animation: snp-anim-open;
     pointer-events: auto;
 }
 
@@ -221,8 +230,8 @@
 }
 
 .snapscreen .dialog__content {
-    width: calc(100% - 16px * 6);
-    max-width: calc(100% - 16px * 6);
+    width: calc(100% - 96px);
+    max-width: calc(100% - 96px);
     background-color: #3468af;
     padding: 32px;
     text-align: center;
@@ -288,18 +297,14 @@
     background-color: black;
 }
 
-.snapscreen-modal .snapscreen {
-    height: 100vh;
-}
-
 .snapscreen-modal .close {
-    position: absolute;
+    position: fixed;
     right: 0;
     top: 16px;
     width: 24px;
     height: 24px;
     opacity: 0.3;
-    z-index: 1;
+    z-index: 2;
     cursor: pointer;
 }
 
@@ -327,7 +332,24 @@
     transform: rotate(-45deg);
 }
 
+.snapscreen-modal-header {
+    display: none;
+}
+
+.snapscreen-modal .snapscreen-modal-header {
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1;
+    color: gray;
+    padding: 16px;
+    display: block;
+    position: fixed;
+}
+
 .snapscreen-modal.snapscreen-results {
+    overflow-y: auto;
+    padding-top: 45px;
     background-color: #f5f5f5;
 }
 
@@ -444,7 +466,7 @@
 }
 
 .snapscreen .tv-search-camera .tv-search-error {
-    top: calc(50% - 16px * 2);
+    top: calc(50% - 32px);
     left: 50%;
     transform: translate(-50%, -50%);
 }
@@ -482,7 +504,7 @@
 }
 
 .snapscreen .tv-search-button:disabled {
-    background: url("../images/processing.gif") #3d76c5 no-repeat center;
+    background: url("../images/snapping.gif") #3d76c5 no-repeat center;
 }
 
 .snapscreen .tv-search-button:disabled i {
@@ -577,7 +599,7 @@
 }
 
 .snapscreen .tv-search-input + .tv-search-label.file-processing {
-    background: #3d76c5 url("../images/processing.gif") no-repeat center;
+    background: #3d76c5 url("../images/snapping.gif") no-repeat center;
 }
 
 .snapscreen .tv-search-input + .tv-search-label.file-processing > div {
@@ -595,7 +617,7 @@
     -o-transform: translateX(-50%);
     transform: translateX(-50%);
     z-index: 5;
-    width: calc(100% - 16px * 4);
+    width: calc(100% - 64px);
     padding: 16px;
     color: white;
     text-align: center;
@@ -639,7 +661,6 @@
 }
 
 .snapscreen .collection {
-    height: 100vh;
     overflow-y: auto;
     overflow-x: hidden;
     position: relative;
@@ -657,7 +678,7 @@
 }
 
 .snapscreen .collection .collection-item.with-margin {
-    margin: calc(16px / 2) 0;
+    margin: 8px 0;
 }
 
 .snapscreen .collection .collection-item.media {
@@ -737,13 +758,13 @@
 }
 
 .snapscreen .meta.schedule {
-    margin: calc(16px / 2) 0 0 0;
+    margin: 8px 0 0 0;
 }
 
 .snapscreen .meta {
     overflow: hidden;
     font-size: 0.8em;
-    margin: calc(16px / 2) 0;
+    margin: 8px 0;
 }
 
 .snapscreen .small {
@@ -876,7 +897,7 @@
 
 .snapscreen.snpbet .tv-search-button:disabled,
 .snapscreen.snpbet .tv-search-input + .tv-search-label.file-processing {
-    background: #ffcc01 url("../images/bet/processing.gif") no-repeat center;
+    background: #ffcc01 url("../images/bet/snapping.gif") no-repeat center;
 }
 
 .snapscreen.snpbet .tv-search-frame {
@@ -884,42 +905,17 @@
 }
 
 .snapscreen.clipshare {
-    padding: 10px;
-    background-color: #dddfe2;
+    background-color: #fafafa;
 }
 
-.snapscreen.clipshare .snp-tab-container {
-    margin: 0 0 10px;
-    padding: 0;
-    list-style: none;
-    display: -webkit-box;
-    display: -ms-flexbox;
-    display: flex;
-}
-
-.snapscreen.clipshare .snp-tab {
-    width: 33.333333333%;
-    text-align: center;
-    padding: 0;
-    margin: 0;
-}
-
-.snapscreen.clipshare .snp-tab {
-    padding: 1rem 0;
-    background-color: #fff;
-    color: #3d76c5;
-}
-
-.snapscreen.clipshare .snp-tab:hover,
-.snapscreen.clipshare .snp-tab:focus,
-.snapscreen.clipshare .snp-tab.snp-tab-active {
-    cursor: pointer;
-    color: #fff;
-    background-color: #3d76c5;
+.snapscreen-modal.snapscreen-results .snapscreen.clipshare {
+    padding: 1rem;
+    margin: 0 auto;
+    max-width: 520px;
 }
 
 .snapscreen.clipshare .snp-form-error {
-    margin: 10px 0;
+    margin: 1rem 0 0;
     color: #ff0027;
     font-size: 85%;
     font-weight: 700;
@@ -930,31 +926,99 @@
     width: 100%;
     border: 0;
     border-radius: 6px;
-    padding: 1rem;
+    padding: 1rem 2rem;
+    margin-top: 1rem;
     display: inline-block;
+    position: relative;
     cursor: pointer;
+    line-height: 1.15;
+    font-size: 1rem;
     font-weight: 700;
+    font-family: sans-serif;
     text-align: center;
     text-decoration: none;
     text-transform: uppercase;
-    letter-spacing: -.05rem;
     transition: background-color .2s;
     color: #fff;
-    background-color: #3d76c5;
+    background-color: #09b5c6;
 }
 
-.snapscreen.clipshare .snp-btn-share:disabled {
-    background-color: gray;
+.snapscreen.clipshare .snp-btn-addon {
+    position: absolute;
+    top: 50%;
+    right: 1rem;
+    transform: translateY(-50%);
+    z-index: 2;
+    opacity: 0;
+    margin: 0;
+    animation: snp-fade-in 0.2s ease-in forwards 1;
+    animation-delay: 0.6s;
+    white-space: nowrap;
+    text-transform: capitalize
+}
+
+.snapscreen.clipshare .snp-btn-addon svg path {
+    fill: #fff
+}
+
+.snapscreen.clipshare .snp-btn-share:disabled,
+.snapscreen.clipshare .snp-btn-disabled {
+    background-color: #808080;
+}
+
+.snapscreen.clipshare .snp-btn-share:disabled::after {
+    content: '';
+    width: 32px;
+    height: 32px;
+    position: absolute;
+    right: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+    background: #808080 url("../images/sharing.gif") no-repeat center;
+}
+
+.snapscreen.clipshare .snp-btn-share:disabled .snp-btn-addon {
+    display: none;
 }
 
 .snapscreen.clipshare .snp-gallery {
+    margin: 0;
     height: 0;
     width: 100%;
     display: block;
     position: relative;
-    margin: 10px 0;
     padding: 56.25% 0 0 0;
     overflow: hidden
+}
+
+.snapscreen.clipshare .snp-gallery.snp-gallery-main {
+    margin-bottom: 0;
+}
+
+.snapscreen.clipshare .snp-gallery.snp-gallery-main .jwplayer {
+    position: absolute;
+}
+
+.snapscreen.clipshare .snp-gallery.snp-gallery-main .jwplayer .jw-icon-playback,
+.snapscreen.clipshare .snp-gallery.snp-gallery-main .jwplayer .jw-icon-rewind,
+.snapscreen.clipshare .snp-gallery.snp-gallery-main .jwplayer .jw-display-icon-rewind,
+.snapscreen.clipshare .snp-gallery.snp-gallery-main .jwplayer .jw-display-icon-display {
+    display: none;
+}
+
+.snapscreen.clipshare .snp-gallery.snp-gallery-main.snp-gallery-preview .jwplayer {
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+}
+
+.snapscreen.clipshare .snp-gallery.snp-gallery-main.snp-gallery-preview .swiper-container {
+    display: none;
+}
+
+.snapscreen.clipshare .snp-gallery.snp-gallery-main .swiper-container img {
+    width: 100%;
 }
 
 .snapscreen.clipshare .snp-gallery img {
@@ -964,15 +1028,85 @@
 }
 
 .snapscreen.clipshare .snp-gallery.snp-gallery-thumb {
-    padding: 18.75% 0 0 0;
+    margin-top: 0;
+    padding: 45px 0 0 0;
 }
 
 .snapscreen.clipshare .snp-gallery.snp-gallery-loading {
-    background: url("../images/preload.gif") no-repeat center;
+    background: url("../images/loading.gif") no-repeat center;
 }
 
 .snapscreen.clipshare .snp-gallery.snp-gallery-thumb.snp-gallery-loading {
     background: none;
+}
+
+.snapscreen.clipshare .snp-gallery.snp-gallery-thumb.snp-gallery-loading {
+    background: none;
+}
+
+.snapscreen.clipshare .snp-gallery.snp-gallery-thumb .swiper-slide {
+    overflow: hidden;
+}
+
+.snapscreen.clipshare .snp-gallery.snp-gallery-thumb .swiper-slide img {
+    left: 50%;
+    height: 45px;
+    max-width: none;
+    position: relative;
+    transform: translateX(-50%);
+}
+
+.snapscreen.clipshare .snp-gallery .snp-gallery-no-clip {
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    margin: 0;
+    text-align: center;
+    -ms-transform: translateY(-50%);
+    transform: translateY(-50%);
+    font-weight: 700;
+    font-size: 150%;
+    color: gray;
+}
+
+.snapscreen.clipshare .snp-range-picker {
+    top: 0;
+    width: 100%;
+    height: 45px;
+    position: absolute;
+}
+
+.snapscreen.clipshare .snp-range-picker div {
+    white-space: nowrap;
+    position: absolute;
+}
+
+.snapscreen.clipshare .snp-range-picker .snp-handle {
+    z-index: 2;
+    top: 0;
+    width: 20px;
+    height: 45px;
+    cursor: pointer;
+    background-color: black;
+}
+
+.snapscreen.clipshare .snp-range-picker .snp-handle.snp-low {
+    background: url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2027%2044'%3E%3Cpath%20d%3D'M0%2C22L22%2C0l2.1%2C2.1L4.2%2C22l19.9%2C19.9L22%2C44L0%2C22L0%2C22L0%2C22z'%20fill%3D'%23ffffff'%2F%3E%3C%2Fsvg%3E") no-repeat 0 6px black;
+}
+
+.snapscreen.clipshare .snp-range-picker .snp-handle.snp-high {
+    background: url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2027%2044'%3E%3Cpath%20d%3D'M27%2C22L27%2C22L5%2C44l-2.1-2.1L22.8%2C22L2.9%2C2.1L5%2C0L27%2C22L27%2C22z'%20fill%3D'%23ffffff'%2F%3E%3C%2Fsvg%3E") no-repeat -1px 6px black;
+}
+
+.snapscreen.clipshare .snp-range-picker .snp-video-position {
+    top: 0;
+    z-index: 3;
+    width: 8px;
+    height: 45px;
+    border-radius: 4px;
+    background-color: white;
+    position: absolute;
 }
 
 .snapscreen.clipshare .snp-gallery .swiper-container {
@@ -988,47 +1122,62 @@
     margin: auto
 }
 
-.snapscreen.clipshare .snp-gallery .swiper-slide .swiper-lazy-preloader::after {
+.snapscreen.clipshare .snp-gallery .swiper-lazy-preloader {
     animation: none;
     -webkit-animation: none;
-    background: url("../images/preload.gif") no-repeat center;
 }
 
-.snapscreen.clipshare .snp-gallery.snp-gallery-loading .swiper-button-next,
-.snapscreen.clipshare .snp-gallery.snp-gallery-loading .swiper-button-prev {
-    display: none;
+.snapscreen.clipshare .snp-gallery.snp-gallery-loading,
+.snapscreen.clipshare .snp-gallery .swiper-lazy-preloader::after {
+    background: url("../images/loading.gif") no-repeat center;
 }
 
-.snapscreen.clipshare .snp-gallery .swiper-button-next.swiper-button-white,
-.snapscreen.clipshare .snp-gallery .swiper-button-prev.swiper-button-white {
-    width: 54px;
-    height: 54px;
-    margin-top: -27px;
-    border-radius: 27px;
-    background-color: rgba(0, 0, 0, 0.4);
+.snapscreen.clipshare .snp-trim-tools {
+    height: 18px;
+    margin: 1rem 0 0;
+    position: relative;
 }
 
-.snapscreen.clipshare .snp-gallery .swiper-button-next.swiper-button-white {
-    right: 5px;
+.snapscreen.clipshare .snp-trim-tools .snp-btn-back {
+    left: 0;
+    position: absolute;
+    cursor: pointer;
+    width: 22px;
+    height: 18px;
+    background: url("../images/trim/back.png") no-repeat center center;
 }
 
-.snapscreen.clipshare .snp-gallery .swiper-button-prev.swiper-button-white {
-    left: 5px;
+.snapscreen.clipshare .snp-trim-tools .snp-btn-forward {
+    right: 0;
+    position: absolute;
+    cursor: pointer;
+    width: 22px;
+    height: 18px;
+    background: url("../images/trim/forward.png") no-repeat center center;
 }
 
-.snapscreen.clipshare .snp-gallery.snp-gallery-thumb .swiper-button-next.swiper-button-white,
-.snapscreen.clipshare .snp-gallery.snp-gallery-thumb .swiper-button-prev.swiper-button-white {
-    width: 34px;
-    height: 34px;
-    margin-top: -17px;
-    border-radius: 17px;
-    background-size: 22px 22px;
+.snapscreen.clipshare .snp-trim-tools .snp-btn-play {
+    left: calc(50% - 9px);
+    position: absolute;
+    cursor: pointer;
+    width: 18px;
+    height: 18px;
+    background: url("../images/trim/play.png") no-repeat center center;
 }
 
-.snapscreen.clipshare .snp-gallery.snp-gallery-thumb .swiper-button-next.swiper-button-white {
-    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2044%2044%27%3E%3Cpath%20d%3D%22m27%2C22l0%2C0l-22%2C22l-2.1%2C-2.099998l19.899999%2C-19.900002l-19.899999%2C-19.9l2.1%2C-2.1l22%2C22l0%2C0z%22%20fill%3D%22%23ffffff%22%2F%3E%3Cpath%20d%3D%22m43.782135%2C22l0%2C0l-21.999849%2C22l-2.100006%2C-2.099998l19.899912%2C-19.900002l-19.899912%2C-19.9l2.100006%2C-2.1l21.999849%2C22l0%2C0z%22%20fill%3D%22%23ffffff%22%2F%3E%3C%2Fsvg%3E");
+.snapscreen.clipshare .snp-trim-tools .snp-btn-stop {
+    left: calc(50% - 9px);
+    position: absolute;
+    cursor: pointer;
+    width: 18px;
+    height: 18px;
+    background: url("../images/trim/stop.png") no-repeat center center;
 }
 
-.snapscreen.clipshare .snp-gallery.snp-gallery-thumb .swiper-button-prev.swiper-button-white {
-    background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2044%2044%27%3E%3Cpath%20d%3D%27M0%2C22L22%2C0l2.1%2C2.1L4.2%2C22l19.9%2C19.9L22%2C44L0%2C22L0%2C22L0%2C22z%27%20fill%3D%27%23ffffff%27%2F%3E%3Cpath%20d%3D%22m17.715229%2C22l21.999985%2C-22l2.099976%2C2.1l-19.899944%2C19.9l19.899944%2C19.900002l-2.099976%2C2.099998l-21.999985%2C-22l0%2C0l0%2C0z%22%20fill%3D%22%23ffffff%22%2F%3E%3C%2Fsvg%3E");
+.snapscreen.clipshare .snp-trim-tools .snp-btn-disabled {
+    -webkit-filter: contrast(10%);
+    -moz-filter: contrast(10%);
+    -o-filter: contrast(10%);
+    -ms-filter: contrast(10%);
+    filter: contrast(10%);
 }

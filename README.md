@@ -1,40 +1,53 @@
 # Snapscreen SDK
 
+Table of Contents
+=================
+* [Support.](#support)
+* [Basic setup.](#basic-setup)
+  * [Access token management.](#access-token-management)
+  * [SDK initialization.](#sdk-initialization)
+* [TV search setup.](#tv-search-setup)
+* [Sport event search setup.](#sport-event-search-setup)
+* [Advertisements search setup.](#advertisements-search-setup)
+* [Clip Share.](#clip-share)
+  * [Clip Share dependencies.](#clip-share-dependencies)
+  * [Clip Share setup.](#clip-share-setup)
+
 ### Support
 
 In case of any questions or problems please contact us at [support@snapscreen.com](mailto:support@snapscreen.com).
 
 ### Basic setup
 
-The first step of integration Snapscreen SDK into your site is to include provided CSS and JavaScript files 
-on your HTML page, like this:
+The first step of integration of the Snapscreen SDK into your site is to include provided CSS and JavaScript
+files your HTML page, like this:
 ```html
 <link href="css/snapscreen-sdk.css" type="text/css" rel="stylesheet">
 <script href="js/snapscreen-sdk.js" type="text/javascript"></script>
 ```
 
-And we expect that customers will host these files on there servers together with provided images and fonts. 
-Please change paths if it is required.
+We expect that customers will host these files on their servers together with provided images and fonts.
+Please change paths in CSS and JS files if it is required.
 
 #### Access token management
 
-Snapscreen SDK requires Access token to communicate with Snapscreen API which uses 
-OAuth 2.0 authentication mechanism. Customers will be provided with Client ID and Secret which it should use 
-to receive access token. Here is an example of HTTP request using curl to receive access token:
+Snapscreen SDK requires an access token to communicate with Snapscreen API which uses OAuth 2.0 authentication
+mechanism. Customers will be provided with Client ID and Secret which it should use to receive the access token.
+Here is an example of the HTTP request using curl to receive access token:
 ```bash
 curl -u "YourClientId:YourClientSecret" -d "grant_type=anonymous"  https://api.snapscreen.com/api/oauth/token
 ```
 
-It is not secure to have this mechanism to be implemented on JavaScript side, because in this case it will be 
-ease enough to steal your customer credentials. That why we suggest to implement this logic in customer server side. 
-It is required to implement REST API resource which will receive token from Snapscreen API, store it in session 
-and return back to user. Lets assume that we do have such resource and it has path '/accesstoken'. 
-For better security we also recommends to use [CSRF token](https://www.owasp.org/index.php/Cross-Site_Request_Forgery_(CSRF)_Prevention_Cheat_Sheet#Synchronizer_.28CSRF.29_Tokens) technique.
+It is not secure to have this mechanism to be implemented in JavaScript, because in this case it will be
+easy enough to steal your customer credentials. That why we suggest implementing this logic on your server-side.
+It is required to implement REST API resource which will receive the access token from Snapscreen API, store it in
+HTTP session and return back to the user. Let's assume that we do have such resource and it has path '/accesstoken'. 
+For better security, we also recommend using [CSRF token](https://www.owasp.org/index.php/Cross-Site_Request_Forgery_(CSRF)_Prevention_Cheat_Sheet#Synchronizer_.28CSRF.29_Tokens) technique.
 
 #### SDK initialization
 
-Once we are ready with access token management resource we can implement access token SDK initialization. 
-For this we need to request access token from your server and set it into SDK like this:
+Once we are ready with access token management resource we are ready to initialize Snapscreen SDK.
+For this we need to request the access token from your server and set it into SDK like this:
 ```javascript
 SnapscreenKit.http({
     url: 'https://yoursite.com/accesstoken',
@@ -49,11 +62,22 @@ SnapscreenKit.http({
     // log the error 
 })
 ```
+Snapscreen provides three types of search/snap:
+* [TV search](#tv-search-setup). Snapscreen will search in the TV channel indexes associated with the customer and
+then resolve EPG units for each found result.
+* [Sports event search](#sport-event-search-setup). Snapscreen will search in the TV channel indexes associated
+with the customer and then resolve Sports events for each found result. If no Sports event found for search
+result entry then this entry will be removed from response.
+* [Advertisement search](#advertisements-search-setup). Snapscreen will search in the special static index
+with advertisements. Customer can request some advertisement to be added to the index.
+
+Snapscreen SDK provides a separate controller for each type of search. Information on how to setup each of them you
+can find below.
 
 ### TV search setup
 
-The first step in initialization of TV search is to create corresponding controller and specify callback functions 
-to which results will be provided with timestamp when snap was made:
+The first step in the initialization of TV search is to create the corresponding controller and specify the callback
+function to which results will be provided with timestamp when the snap was made:
 ```javascript
 var tvSnapController = SnapscreenKit.tvSnapViewController({
     onResultEntry: function (resultEntry, snapTimestamp, screenQuadrangle) {
@@ -62,13 +86,7 @@ var tvSnapController = SnapscreenKit.tvSnapViewController({
 });
 ```
 
-Now it is required to place a snap button somewhere on you HTML page which will trigger snapping process. Lets assume 
-that you have an element on your page with id "main" then you can use the following code to add button to this element:
-```javascript
-tvSnapController.createSnapButton().appendTo(document.getElementById('main'));
-```
-
-Results of TV search will be provided in the following format:
+``resultEntry`` has the following format:
 ```javascript
 {
   tvChannel: {
@@ -90,6 +108,13 @@ Results of TV search will be provided in the following format:
 }
 ```
 
+Now it is required to place a snap button somewhere on you HTML page which will trigger the snapping process.
+Let's assume that you have an element on your page with id "main" then you can use the following code to add
+the snap button to this element:
+```javascript
+tvSnapController.createSnapButton().appendTo(document.getElementById('main'));
+```
+
 ### Sport event search setup
 
 Process of initialization of SDK for sport event search is the same as for TV search, but you need to call
@@ -103,7 +128,7 @@ var sportSnapController = SnapscreenKit.sportSnapViewController({
 sportSnapController.createSnapButton().appendTo(document.getElementById('main'));
 ```
 
-Results of sport event search will be provided in the following format:
+``resultEntry`` in this case has the following format:
 ```javascript
 {
   tvChannel: {
@@ -162,7 +187,7 @@ var snapController = SnapscreenKit.adsSnapViewController({
 snapController.createSnapButton().appendTo(document.getElementById('main'));
 ```
 
-Results of advertisement search will be provided in the following format:
+``resultEntry`` in this case has the following format:
 ```javascript
 {
   advertisement: {
@@ -177,79 +202,60 @@ Results of advertisement search will be provided in the following format:
 }
 ```
 
-# Clip Share AngularJS module
+### Clip Share
 
-Clip Share AngularJS module provides a set of components that implements Clip Share functionality.
+Snapscreen SDK provides a component that allows end users to create and share video clips. This article will describe
+how to setup it and use.
 
-### Basic setup
+#### Clip Share dependencies
 
-The first step of the integration of Clip Share AngularJS module is to integrate Snapscreen SDK as module only adds
-the functionality of Clip Sharing while still relying on the basic functionality of Snapscreen SDK. Please find
-more information about it above. But you need change the API URL to clip.farm instead of api.snapscreen.com
-on line 307 of snapscreen-sdk.js:
-```javascript
-baseUrl = 'https://clip.farm';
-```
+Clip share component of the Snapscreen SDK have several dependencies that are listed bellow.
 
-[Swiper JS library](https://idangero.us/swiper/) is used to provide gallery behavior. The second step is
-to include CSS and JS files, related to Swiper JS library on your HTML page:
+[Swiper JS library](https://idangero.us/swiper/) is used to provide gallery behavior. It is required to
+include CSS and JS files, related to Swiper JS library on your HTML page:
 ```html
 <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/Swiper/4.0.7/css/swiper.min.css">
 <script src="//cdnjs.cloudflare.com/ajax/libs/Swiper/4.0.7/js/swiper.min.js"></script>
 ```
 
-[JW Player](https://www.jwplayer.com) is used for Clip preview functionality. It is required to buy a license for
+[JW Player](https://www.jwplayer.com) is used for Clip preview functionality. You will need to buy a license for
 JW Player on their site and then you need to include provided configured player JS file on your HTML page like this:
 ```html
 <script type="text/javascript" src="https://cdn.jwplayer.com/libraries/YOUR_LICENSE.js"></script>
 ```
 
-You will also need to include AngularJS JavaScript on your HTML page. You can use a self-hosted version of AngularJS
-or CDN-hosted like this:
-```html
-<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/angular.js/1.5.8/angular.min.js"></script>
-```
+#### Clip Share setup
 
-And of course you need to include provided CSS and JavaScript files related to Clip Farm AngularJS module
-on your HTML page, like this:
-```html
-<script href="js/snapscreen-ng-sdk.js" type="text/javascript"></script>
-<script href="js/clip-share-module.js" type="text/javascript"></script>
-```
-
-The final step of basic integration is to activate AngularJS application somewhere on your HTML page, like this:
-```html
-<div id="clipShareApp" ng-app="clipShare" ng-controller="ClipShareController">
-    <clip-share result-entry="resultEntry" ng-if="resultEntry" on-clip-shared="clipShared(clip)"></clip-share>
-</div>
-```
-
-### Integration with Snapscreen SDK
-
-Before sharing a clip user needs to snap to find a moment to be shared. Snapscreen SDK is responsible for
-snapping functionality and after snap you need to provide received resultEntry in onResultEntry callback
-to Clip Share component using the following code:
+The first step is to create one of the snap view controllers described above, but now you also need to provide a
+callback function to which created clip will be provided. In the code snippet below I will show how to do this
+for the TV search controller, but the same is possible with other controllers too. The only difference is
+the name of the function.
 ```javascript
-var clipShareAppElement = document.getElementById('clipShareApp');
-var $scope = angular.element(clipShareAppElement).scope();
-$scope.$apply(function() {
-    $scope.resultEntry = resultEntry;
+var tvSnapController = SnapscreenKit.tvSnapViewController({
+    onResultEntry: function (resultEntry) {
+        // Your handling logic here
+    },
+    onClipCreated: function(createdClip) {
+        // Your handling logic here
+    }
 });
 ```
 
-### Clip Share result
-
-After resultEntry is provided to Clip Share component it will navigate the user through the clip-sharing process.
-In order to receive information about shared clip you need to subscribe for the corresponding event:
+Snap view controllers provide a function ``showClipShare`` that will open the clip sharing component in the modal window.
+This function accepts only one argument ``resultEntry`` that was provided in ``onResultEntry`` callback. You can put
+the call to ``showClipShare`` inside onResultEntry callback function like this:
 ```javascript
-var clipShareAppElement = document.getElementById('clipShareApp');
-var $scope = angular.element(clipShareAppElement).scope();
-$scope.$on('clipShared', function (event, clip) {
-    // Your handling logic here
+var tvSnapController = SnapscreenKit.tvSnapViewController({
+    onResultEntry: function (resultEntry) {
+        tvSnapController.showClipShare(resultEntry);
+    },
+    onClipCreated: function(createdClip) {
+        // Your handling logic here
+    }
 });
 ```
 
-Metadata about the shared clip is provided to parameter clip and has the following structure:
+``createdClip`` has the following format:
 ```javascript
 {
   tvChannelId; number (long),
