@@ -258,18 +258,29 @@ var tvSnapController = SnapscreenKit.tvSnapViewController({
 ``createdClip`` has the following format:
 ```javascript
 {
-  tvChannelId; number (long),
-  timestampRefFrom; number (long),
-  timestampRefTo; number (long),
-  timestampRefThumb; number (long),
+  id: string,
+  tvChannelId: number (long),
+  timestampRefFrom: number (long),
+  timestampRefTo: number (long),
+  timestampRefThumb: number (long),
   _links: {
       player: {
           href: string (url)
       },
       thumbnail: {
           href: string (url)
+      },
+      video: {
+          href: string (url)
       }
   }
 }
 ```
  
+ After receiving created clip you have two options:
+ * Use the HTML player provided by Snapscreen. In this case, you need to take the link to the HTML player page from
+``createdClip._links.player.href`` and initialize sharing process of this link.
+ * Another possibility is to develop your own HTML player page (it is required to use a player that can play HLS
+ videos). In this case, you need to store somewhere id of the created clip and use this id to get the link to
+ the video using [this API](https://github.com/snpscrn/api-http#clips) when a user requested corresponding page.
+   

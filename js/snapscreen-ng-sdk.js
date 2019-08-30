@@ -46,7 +46,7 @@ angular.module('snapscreen-sdk', [])
                 "webSearchService": snapscreenKit.webSearchService,
                 "tvChannelService": snapscreenKit.tvChannelService,
                 "sportEventService": snapscreenKit.sportEventService,
-                "clipShareService": snapscreenKit.clipShareService,
+                "clipService": snapscreenKit.clipService,
                 "tvSnapViewController": snapscreenKit.tvSnapViewController,
                 "sportSnapViewController": snapscreenKit.sportSnapViewController,
                 "adsSnapViewController": snapscreenKit.adsSnapViewController

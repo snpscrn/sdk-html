@@ -175,6 +175,7 @@
                 if (typeof ga === 'function') {
                     event = {
                         "hitType": 'event',
+                        "transport": 'beacon',
                         "eventCategory": category,
                         "eventAction": action,
                         "eventLabel": label
@@ -253,6 +254,15 @@
             },
             clipShareClosed: function() {
                 trackEvent('ClipShareClose');
+            },
+            clipShareShare: function() {
+                trackEvent('ClipShareShare');
+            },
+            clipShareShared: function() {
+                trackEvent('ClipShareShared');
+            },
+            clipShareShareCancelled: function() {
+                trackEvent('ClipShareShareCancel');
             }
         };
     }
@@ -348,7 +358,7 @@
     }
 
     function snapscreenApiFactory(logger, accessTokenHolder) {
-        var timeLag = 0, baseUrl = 'https://api.snapscreen.com';
+        var timeLag = 0, baseUrl = 'https://api.snapscreen.com/api';
 
         function currentTimestamp() {
             return Date.now() - timeLag;
@@ -391,7 +401,7 @@
     }
 
     function clipShareApiFactory(accessTokenHolder) {
-        var baseUrl = 'https://clip.farm';
+        var baseUrl = 'https://clip.farm/api';
 
         function setOrGetBaseUrl() {
             if (arguments.length === 0) {
@@ -494,7 +504,7 @@
 
         function internalApiWebSearch(resourceType, itemMapper, request, resolve, reject) {
             return snapscreenApi.exchange({
-                url: '/api/web-search/' + resourceType,
+                url: '/web-search/' + resourceType,
                 method: 'GET',
                 params: request
             }, normalizeWebSearchResult(resolve, itemMapper), reject);
@@ -600,7 +610,7 @@
             }
             snapscreenApi.exchange({
                 "method": 'POST',
-                "url": '/api/tv-search/store-feedback',
+                "url": '/tv-search/store-feedback',
                 "headers": {'content-type': 'application/json'},
                 "data": JSON.stringify(feedback)
             }, function(response) {
@@ -613,26 +623,26 @@
         return {
             "epg": {
                 "snap": function snapEpg(request, resolve, reject, onUploadProgress) {
-                    snap('/api/tv-search/epg/by-image', request, snapHttpHeaders, resolve, reject, onUploadProgress);
+                    snap('/tv-search/epg/by-image', request, snapHttpHeaders, resolve, reject, onUploadProgress);
                 },
                 "autoSnap": function autoSnapEpg(request, resolve, reject, onUploadProgress) {
-                    snap('/api/tv-search/epg/near-timestamp/by-image', request, autoSnapHttpHeaders,
+                    snap('/tv-search/epg/near-timestamp/by-image', request, autoSnapHttpHeaders,
                         resolve, reject, onUploadProgress);
                 },
                 "storeFeedback": storeFeedback
             },
             "ads": {
                 "snap": function snapAds(request, resolve, reject, onUploadProgress) {
-                    snap('/api/ads/search/by-image', request, snapHttpHeaders, resolve, reject, onUploadProgress);
+                    snap('/ads/search/by-image', request, snapHttpHeaders, resolve, reject, onUploadProgress);
                 },
                 "storeFeedback": storeFeedback
             },
             "sport": {
                 "snap": function snapSport(request, resolve, reject, onUploadProgress) {
-                    snap('/api/tv-search/sport/by-image', request, snapHttpHeaders, resolve, reject, onUploadProgress);
+                    snap('/tv-search/sport/by-image', request, snapHttpHeaders, resolve, reject, onUploadProgress);
                 },
                 "autoSnap": function autoSnapSport(request, resolve, reject, onUploadProgress) {
-                    snap('/api/tv-search/sport/near-timestamp/by-image', request, autoSnapHttpHeaders,
+                    snap('/tv-search/sport/near-timestamp/by-image', request, autoSnapHttpHeaders,
                         resolve, reject, onUploadProgress);
                 },
                 "storeFeedback": storeFeedback
@@ -954,7 +964,7 @@
     function tsImageServiceFactory(snapscreenApi, httpBlobCache) {
         return {
             "downloadAtTimestamp": function (tvChannelId, timestampRef, resolve, reject) {
-                var uri = '/api/ts-images/' + tvChannelId + '/' + timestampRef + '/download';
+                var uri = '/ts-images/' + tvChannelId + '/' + timestampRef + '/download';
                 httpBlobCache.computeIfAbsent(uri, function (cacheResolve, cacheReject) {
                     return snapscreenApi.exchange({
                         method: 'GET',
@@ -969,7 +979,7 @@
     function adImageServiceFactory(snapscreenApi, httpBlobCache) {
         return {
             "downloadAtTimeOffset": function (advertisementId, timeOffset, resolve, reject) {
-                var uri = '/api/ads/images/' + advertisementId + '/' + timeOffset + '/download';
+                var uri = '/ads/images/' + advertisementId + '/' + timeOffset + '/download';
                 httpBlobCache.computeIfAbsent(uri, function (cacheResolve, cacheReject) {
                     return snapscreenApi.exchange({
                         method: 'GET',
@@ -1002,7 +1012,7 @@
         };
     }
 
-    function clipShareServiceFactory(clipShareApi) {
+    function clipServiceFactory(clipShareApi) {
         var storedPreview = {};
         function loadPreview(params, resolve, reject) {
             if ((params.tvChannelId && params.tvChannelId === storedPreview.tvChannelId &&
@@ -1012,7 +1022,7 @@
                 resolve(storedPreview);
             } else {
                 clipShareApi.exchange({
-                    url: '/api/clips/preview',
+                    url: '/clips/preview',
                     method: 'POST',
                     responseType: 'json',
                     headers: {'content-type': 'application/x-www-form-urlencoded'},
@@ -1025,9 +1035,9 @@
             }
         }
         return {
-            shareTvClip: function shareTvClip(tvChannelId, timestampRefFrom, timestampRefTo, timestampRefThumb, resolve, reject) {
+            createTvClip: function createTvClip(tvChannelId, timestampRefFrom, timestampRefTo, timestampRefThumb, resolve, reject) {
                 clipShareApi.exchange({
-                    url: '/api/clips/share',
+                    url: '/clips',
                     method: 'POST',
                     responseType: 'json',
                     headers: {'content-type': 'application/x-www-form-urlencoded'},
@@ -1042,9 +1052,9 @@
             previewTvClip: function previewTvClip(tvChannelId, timestampRef, resolve, reject) {
                 return loadPreview({tvChannelId: tvChannelId, timestampRef: timestampRef}, resolve, reject);
             },
-            shareAdClip: function shareAdClip(advertisementId, timeOffsetFrom, timeOffsetTo, timeOffsetThumb, resolve, reject) {
+            createAdClip: function createAdClip(advertisementId, timeOffsetFrom, timeOffsetTo, timeOffsetThumb, resolve, reject) {
                 clipShareApi.exchange({
-                    url: '/api/clips/share',
+                    url: '/clips',
                     method: 'POST',
                     responseType: 'json',
                     headers: {'content-type': 'application/x-www-form-urlencoded'},
@@ -1930,8 +1940,8 @@
         };
     }
 
-    function SnapscreenClipShareController(resultEntry, clipShareService, analytics,
-                                           templateEngine, uiNavigator, customClipShareService) {
+    function SnapscreenClipShareController(resultEntry, clipService, analytics,
+                                           templateEngine, uiNavigator, customClipService) {
         var template, container, poster, buttonBack, buttonPlay, buttonStop, buttonForward, buttonShare;
         var galleryThumbs, rangePicker, rangePickerSettings, player, playerSource;
         var processing = false, previewVisible = false, fragment, gallery, galleryThumbnails;
@@ -1969,8 +1979,11 @@
             setProcessingStatus(false);
             if (reason.status === 401 || reason.status === 403) {
                 showFeedbackMessage('Authentication failed, please re-authenticate to continue.');
+            } else if (reason.status === 400 && reason.data && reason.data.message &&
+                reason.data.message.indexOf('does not have associated videos') > 0) {
+                showFeedbackMessage('Failed to share a clip. Video is not available in the selected time frame.');
             } else {
-                showFeedbackMessage('Failed to share clip. Please try again');
+                showFeedbackMessage('Failed to share a clip. Please try again.');
             }
         }
 
@@ -1995,17 +2008,17 @@
                 posterTime = fragment.startTime;
             }
 
-            if (customClipShareService) {
-                service = customClipShareService;
+            if (customClipService) {
+                service = customClipService;
             } else {
-                service = clipShareService;
+                service = clipService;
             }
 
             if (resultEntry.advertisement) {
-                service.shareAdClip(resultEntry.advertisement.id, fragment.startTime, fragment.endTime, posterTime,
+                service.createAdClip(resultEntry.advertisement.id, fragment.startTime, fragment.endTime, posterTime,
                     onClipCreated, onClipCreateFailed);
             } else {
-                service.shareTvClip(resultEntry.tvChannel.id, fragment.startTime, fragment.endTime, posterTime,
+                service.createTvClip(resultEntry.tvChannel.id, fragment.startTime, fragment.endTime, posterTime,
                     onClipCreated, onClipCreateFailed);
             }
         }
@@ -2379,10 +2392,10 @@
             template = templateEngine.load('clipShareLoading', container);
 
             if (resultEntry.tvChannel && resultEntry.timestampRef) {
-                clipShareService.previewTvClip(resultEntry.tvChannel.id, resultEntry.timestampRef,
+                clipService.previewTvClip(resultEntry.tvChannel.id, resultEntry.timestampRef,
                     onPreviewLoaded, onPreviewLoadFailed);
             } else if (resultEntry.advertisement && resultEntry.timeOffset) {
-                clipShareService.previewAdClip(resultEntry.advertisement.id, resultEntry.timeOffset,
+                clipService.previewAdClip(resultEntry.advertisement.id, resultEntry.timeOffset,
                     onPreviewLoaded, onPreviewLoadFailed);
             }
         };
@@ -2411,8 +2424,28 @@
         };
     }
 
+    function SnapscreenShareButtonController(shareUrl, mediaInfo, analytics) {
+        function shareClip(event) {
+            if (event) {
+                event.preventDefault();
+            }
+            analytics.clipShareShare();
+            navigator.share({url: shareUrl}).then(analytics.clipShareShared, analytics.clipShareShareCancelled);
+        }
+
+        this.bindTo = function (target) {
+            var navigator = window.navigator;
+            if (navigator.share) {
+                target.addEventListener('click', shareClip);
+                return true;
+            } else {
+                return false;
+            }
+        };
+    }
+
     function SnapscreenSnapViewController(logger, snapService, blobService, sportEventService, tvChannelService,
-                                          tsImageService, adImageService, clipShareService, analytics, options) {
+                                          tsImageService, adImageService, clipService, analytics, options) {
         var self = this, active = false, snapTimestamp = 0, snapComponent, searchResults, resultsSnapButton,
             videoDevices, zoom, video, viewFrame, checkCameraTimeout, autoSnapTimeout, autoSnapStatus, currentStream,
             storage, blocked, errorMessage, feedbackMessage, uiNavigator, uiBlocker, templateEngine,
@@ -2833,8 +2866,8 @@
             return new SnapButton();
         };
         this.createClipShareController = function(resultEntry) {
-            return new SnapscreenClipShareController(resultEntry, clipShareService, analytics,
-                templateEngine, uiNavigator, options.clipShareService);
+            return new SnapscreenClipShareController(resultEntry, clipService, analytics,
+                templateEngine, uiNavigator, options.clipService);
         };
         this.showResults = function(target, results) {
             searchResults.showResults(target, results);
@@ -2982,7 +3015,7 @@
         sportEventService = sportEventServiceFactory(),
         tsImageService = tsImageServiceFactory(snapscreenApi, httpBlobCache),
         adImageService = adImageServiceFactory(snapscreenApi, httpBlobCache),
-        clipShareService = clipShareServiceFactory(clipShareApi),
+        clipService = clipServiceFactory(clipShareApi),
         analytics = analyticsFactory();
 
     /**
@@ -2998,22 +3031,25 @@
         "accessTokenHolder": accessTokenHolder,
         "tvSnapViewController": function createSnapscreenTvSnapViewController(options) {
             return new SnapscreenSnapViewController(logger, snapService.epg, blobService, sportEventService,
-                tvChannelService, tsImageService, adImageService, clipShareService, analytics, options);
+                tvChannelService, tsImageService, adImageService, clipService, analytics, options);
         },
         "sportSnapViewController": function createSnapscreenSportSnapViewController(options) {
             return new SnapscreenSnapViewController(logger, snapService.sport, blobService, sportEventService,
-                tvChannelService, tsImageService, adImageService, clipShareService, analytics, extend({
+                tvChannelService, tsImageService, adImageService, clipService, analytics, extend({
                     "cssClass": 'snapscreen snpbet',
                     "noEntryImage": '/images/bet/header-gradient.png'
                 }, options));
         },
         "adsSnapViewController": function createSnapscreenAdsSnapViewController(options) {
             return new SnapscreenSnapViewController(logger, snapService.ads, blobService, sportEventService,
-                tvChannelService, tsImageService, adImageService, clipShareService, analytics, options);
+                tvChannelService, tsImageService, adImageService, clipService, analytics, options);
+        },
+        "shareButtonController": function createSnapscreenShareButtonController(shareUrl, mediaInfo) {
+            return new SnapscreenShareButtonController(shareUrl, mediaInfo, analytics);
         },
         "webSearchService": webSearchService,
         "tvChannelService": tvChannelService,
         "sportEventService": sportEventService,
-        "clipShareService": clipShareService
+        "clipService": clipService
     };
 }(window));
