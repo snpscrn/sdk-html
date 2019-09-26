@@ -401,7 +401,7 @@
     }
 
     function clipShareApiFactory(accessTokenHolder) {
-        var baseUrl = 'https://clip.farm/api';
+        var baseUrl = 'https://clip.snapscreen.com/api';
 
         function setOrGetBaseUrl() {
             if (arguments.length === 0) {
