@@ -1405,10 +1405,14 @@
     }
 
     function VideoDevicesManager() {
-        var devices, selectedVideoDevice, getUserMedia, getDeviceConstraints,
+        var devices, selectedVideoDevice, getUserMedia, getDeviceConstraints, supportedConstraints,
             videoOptional = [{minWidth: 320}, {minWidth: 640}, {minWidth: 1024},
                 {minWidth: 1280}, {minWidth: 1920}, {minWidth: 2560}],
-            defaultConstraints = {audio: false, video: {optional: videoOptional}};
+            defaultConstraints = {audio: false, video: {optional: videoOptional}},
+            defaultEnvironmentConstraints = {
+                audio: false,
+                video: {facingMode: { ideal: 'environment' }, width: {min: 320, ideal: 1920, max: 2560}}
+            };
 
         function detect(resolve, reject) {
             if (typeof devices !== 'undefined') {
@@ -1439,18 +1443,24 @@
                 });
             } else if (navigator && navigator.mediaDevices && typeof navigator.mediaDevices.enumerateDevices === 'function') {
                 navigator.mediaDevices.enumerateDevices().then(function (mediaDevices) {
-                    var i, facing;
+                    var i, facing, label, lcLabel;
                     devices = [];
                     for (i = 0; i < mediaDevices.length; i += 1) {
                         if (mediaDevices[i].kind === 'videoinput') {
-                            if (mediaDevices[i].label === '') {
-                                facing = (devices.length / 2 === 0) ? 'user' : 'environment';
+                            label = mediaDevices[i].label;
+                            if (label === '') {
+                                facing = (devices.length % 2 === 0) ? 'user' : 'environment';
                             } else {
-                                facing = mediaDevices[i].label.endsWith('facing back') ? 'environment' : 'user';
+                                lcLabel = label.toLocaleLowerCase();
+                                if (lcLabel.endsWith('facing back') || lcLabel.endsWith('back camera')) {
+                                    facing = 'environment';
+                                } else {
+                                    facing = 'user';
+                                }
                             }
                             devices.push({
                                 id: mediaDevices[i].deviceId,
-                                label: mediaDevices[i].label,
+                                label: label,
                                 facing: facing,
                                 kind: 'videoinput'
                             });
@@ -1469,15 +1479,50 @@
         }
 
         function open(device, resolve, reject) {
-            function onDeviceStreamReady(stream) {
+            var constraints;
+            if (device) {
+                constraints = getDeviceConstraints(device);
+            } else {
+                constraints = defaultConstraints;
+            }
+            getUserMedia(constraints, function onDeviceStreamReady(stream) {
                 selectedVideoDevice = device;
                 resolve(stream);
+            }, reject);
+        }
+
+        function findDeviceById(deviceId) {
+            if (devices) {
+                for (var i = 0; i < devices.length; i += 1) {
+                    if (deviceId === devices[i].id) {
+                        return devices[i];
+                    }
+                }
             }
-            if (device) {
-                getUserMedia(getDeviceConstraints(device), onDeviceStreamReady, reject);
-            } else {
-                getUserMedia(defaultConstraints, onDeviceStreamReady, reject);
-            }
+            return undefined;
+        }
+
+        function openDefault(resolve, reject) {
+            getUserMedia(defaultEnvironmentConstraints, function onDeviceStreamReady(stream) {
+                var deviceId = null;
+                function onVideoDevicesDetected() {
+                    selectedVideoDevice = findDeviceById(deviceId);
+                    resolve(stream);
+                }
+
+                if (typeof stream.getVideoTracks === 'function') {
+                    var videoTracks = stream.getVideoTracks();
+                    if (videoTracks && videoTracks.length > 0 && typeof videoTracks[0].getSettings === 'function') {
+                        deviceId = videoTracks[0].getSettings().deviceId;
+                    }
+                }
+                if (typeof devices !== 'undefined') {
+                    onVideoDevicesDetected();
+                } else {
+                    detect(onVideoDevicesDetected, reject);
+                }
+
+            }, reject);
         }
 
         this.openPreferred = function (resolve, reject) {
@@ -1486,16 +1531,26 @@
             } else if (selectedVideoDevice) {
                 open(selectedVideoDevice, resolve, reject);
             } else {
-                detect(function onVideoDevicesDetected(devices) {
+                detect(function onVideoDevicesDetected(detected) {
                     var device = null, i;
-                    if (devices) {
-                        for (i = 0; i < devices.length; i += 1) {
-                            if (devices[i].facing === 'environment') {
-                                device = devices[i];
+                    if (detected) {
+                        if (detected.length === 1 && detected[0].id === '' && supportedConstraints.deviceId) {
+                            // This is a fix for Safari new behaviour since version 13: now it returns a fake list of
+                            // devices if it was requested before getUserMedia first call. A designator is that we get
+                            // only one video device with empty id while deviceId feature is supported. In order to
+                            // solve this problem we request environment faced video stream and after that we request
+                            // a real list of devices.
+                            devices = undefined;
+                            openDefault(resolve, reject);
+                            return;
+                        }
+                        for (i = 0; i < detected.length; i += 1) {
+                            if (detected[i].facing === 'environment') {
+                                device = detected[i];
                             }
                         }
                         if (!device) {
-                            device = devices[devices.length - 1];
+                            device = detected[detected.length - 1];
                         }
                     }
                     open(device, resolve, reject);
@@ -1559,7 +1614,7 @@
         };
         if (typeof navigator.mediaDevices !== 'undefined' &&
             typeof navigator.mediaDevices.getSupportedConstraints === 'function') {
-            var supportedConstraints = navigator.mediaDevices.getSupportedConstraints();
+            supportedConstraints = navigator.mediaDevices.getSupportedConstraints();
             if (supportedConstraints.deviceId) {
                 getDeviceConstraints = function getDeviceConstraintsWithDeviceId(device) {
                     return {
@@ -1577,6 +1632,8 @@
                     };
                 };
             }
+        } else {
+            supportedConstraints = {};
         }
     }
 
