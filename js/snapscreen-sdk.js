@@ -170,29 +170,19 @@
     function analyticsFactory() {
         var trackEvent, category = 'SnapscreenSDK', label = 'JS/1.0.0';
         trackEvent = function(action, value) {
-            var event;
             try {
                 if (typeof ga === 'function') {
-                    event = {
-                        "hitType": 'event',
+                    ga('send', {
+                        "hitType": 'pageview',
                         "transport": 'beacon',
-                        "eventCategory": category,
-                        "eventAction": action,
-                        "eventLabel": label
-                    };
-                    if (typeof value !== 'undefined') {
-                        event.eventValue = value;
-                    }
-                    ga('send', event);
+                        "page": '/' + category + '/' + label + '/' + action,
+                        "title": category + ': ' + action
+                    });
                 } else if (typeof gtag === 'function') {
-                    event = {
-                        'event_category': category,
-                        'event_label': label
-                    };
-                    if (typeof value !== 'undefined') {
-                        event.value = value;
-                    }
-                    gtag('event', action, event);
+                    gtag('event', 'page_view', {
+                        "page_path": '/' + category + '/' + label + '/' + action,
+                        "page_title": category + ': ' + action
+                    });
                 } else {
                     console.log('Tracked event', {
                         "eventCategory": category,
