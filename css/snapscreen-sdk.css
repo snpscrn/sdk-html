@@ -347,17 +347,6 @@
     position: fixed;
 }
 
-.snapscreen-modal.snapscreen-results {
-    overflow-y: auto;
-    padding-top: 45px;
-    background-color: #f5f5f5;
-}
-
-.snapscreen-modal.snapscreen-results .close:before,
-.snapscreen-modal.snapscreen-results .close:after {
-    background-color: black;
-}
-
 .snapscreen .tutorial-logo {
     opacity: 0.3;
     width: 180px;
@@ -631,6 +620,22 @@
     background-color: grey;
 }
 
+.snapscreen .tv-search-fallback-message {
+    position: absolute;
+    top: 10%;
+    left: 50%;
+    -webkit-transform: translateX(-50%);
+    -moz-transform: translateX(-50%);
+    -ms-transform: translateX(-50%);
+    -o-transform: translateX(-50%);
+    transform: translateX(-50%);
+    z-index: 5;
+    width: calc(100% - 64px);
+    padding: 16px;
+    color: white;
+    text-align: center;
+}
+
 .snapscreen .tv-search-frame {
     z-index: 1;
     position: absolute;
@@ -902,282 +907,4 @@
 
 .snapscreen.snpbet .tv-search-frame {
     border: 6px solid #ffcc01;
-}
-
-.snapscreen.clipshare {
-    background-color: #fafafa;
-}
-
-.snapscreen-modal.snapscreen-results .snapscreen.clipshare {
-    padding: 1rem;
-    margin: 0 auto;
-    max-width: 520px;
-}
-
-.snapscreen.clipshare .snp-form-error {
-    margin: 1rem 0 0;
-    color: #ff0027;
-    font-size: 85%;
-    font-weight: 700;
-    text-align: right;
-}
-
-.snapscreen.clipshare .snp-btn-share {
-    width: 100%;
-    border: 0;
-    border-radius: 6px;
-    padding: 1rem 2rem;
-    margin-top: 1rem;
-    display: inline-block;
-    position: relative;
-    cursor: pointer;
-    line-height: 1.15;
-    font-size: 1rem;
-    font-weight: 700;
-    font-family: sans-serif;
-    text-align: center;
-    text-decoration: none;
-    text-transform: uppercase;
-    transition: background-color .2s;
-    color: #fff;
-    background-color: #09b5c6;
-}
-
-.snapscreen.clipshare .snp-btn-addon {
-    position: absolute;
-    top: 50%;
-    right: 1rem;
-    transform: translateY(-50%);
-    z-index: 2;
-    opacity: 0;
-    margin: 0;
-    animation: snp-fade-in 0.2s ease-in forwards 1;
-    animation-delay: 0.6s;
-    white-space: nowrap;
-    text-transform: capitalize
-}
-
-.snapscreen.clipshare .snp-btn-addon svg path {
-    fill: #fff
-}
-
-.snapscreen.clipshare .snp-btn-share:disabled,
-.snapscreen.clipshare .snp-btn-disabled {
-    background-color: #808080;
-}
-
-.snapscreen.clipshare .snp-btn-share:disabled::after {
-    content: '';
-    width: 32px;
-    height: 32px;
-    position: absolute;
-    right: 1rem;
-    top: 50%;
-    transform: translateY(-50%);
-    background: #808080 url("../images/sharing.gif") no-repeat center;
-}
-
-.snapscreen.clipshare .snp-btn-share:disabled .snp-btn-addon {
-    display: none;
-}
-
-.snapscreen.clipshare .snp-gallery {
-    margin: 0;
-    height: 0;
-    width: 100%;
-    display: block;
-    position: relative;
-    padding: 56.25% 0 0 0;
-    overflow: hidden
-}
-
-.snapscreen.clipshare .snp-gallery.snp-gallery-main {
-    margin-bottom: 0;
-}
-
-.snapscreen.clipshare .snp-gallery.snp-gallery-main .jwplayer {
-    position: absolute;
-}
-
-.snapscreen.clipshare .snp-gallery.snp-gallery-main .jwplayer .jw-icon-playback,
-.snapscreen.clipshare .snp-gallery.snp-gallery-main .jwplayer .jw-icon-rewind,
-.snapscreen.clipshare .snp-gallery.snp-gallery-main .jwplayer .jw-display-icon-rewind,
-.snapscreen.clipshare .snp-gallery.snp-gallery-main .jwplayer .jw-display-icon-display {
-    display: none;
-}
-
-.snapscreen.clipshare .snp-gallery.snp-gallery-main.snp-gallery-preview .jwplayer {
-    top: 0;
-    bottom: 0;
-    left: 0;
-    right: 0;
-}
-
-.snapscreen.clipshare .snp-gallery.snp-gallery-main.snp-gallery-preview .swiper-container {
-    display: none;
-}
-
-.snapscreen.clipshare .snp-gallery.snp-gallery-main .swiper-container img {
-    width: 100%;
-}
-
-.snapscreen.clipshare .snp-gallery img {
-    border-style: none;
-    max-width: 100%;
-    vertical-align: middle;
-}
-
-.snapscreen.clipshare .snp-gallery.snp-gallery-thumb {
-    margin-top: 0;
-    padding: 45px 0 0 0;
-}
-
-.snapscreen.clipshare .snp-gallery.snp-gallery-loading {
-    background: url("../images/loading.gif") no-repeat center;
-}
-
-.snapscreen.clipshare .snp-gallery.snp-gallery-thumb.snp-gallery-loading {
-    background: none;
-}
-
-.snapscreen.clipshare .snp-gallery.snp-gallery-thumb.snp-gallery-loading {
-    background: none;
-}
-
-.snapscreen.clipshare .snp-gallery.snp-gallery-thumb .swiper-slide {
-    overflow: hidden;
-}
-
-.snapscreen.clipshare .snp-gallery.snp-gallery-thumb .swiper-slide img {
-    left: 50%;
-    height: 45px;
-    max-width: none;
-    position: relative;
-    transform: translateX(-50%);
-}
-
-.snapscreen.clipshare .snp-gallery .snp-gallery-no-clip {
-    position: absolute;
-    top: 50%;
-    left: 0;
-    right: 0;
-    margin: 0;
-    text-align: center;
-    -ms-transform: translateY(-50%);
-    transform: translateY(-50%);
-    font-weight: 700;
-    font-size: 150%;
-    color: gray;
-}
-
-.snapscreen.clipshare .snp-range-picker {
-    top: 0;
-    width: 100%;
-    height: 45px;
-    position: absolute;
-}
-
-.snapscreen.clipshare .snp-range-picker div {
-    white-space: nowrap;
-    position: absolute;
-}
-
-.snapscreen.clipshare .snp-range-picker .snp-handle {
-    z-index: 2;
-    top: 0;
-    width: 20px;
-    height: 45px;
-    cursor: pointer;
-    background-color: black;
-}
-
-.snapscreen.clipshare .snp-range-picker .snp-handle.snp-low {
-    background: url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2027%2044'%3E%3Cpath%20d%3D'M0%2C22L22%2C0l2.1%2C2.1L4.2%2C22l19.9%2C19.9L22%2C44L0%2C22L0%2C22L0%2C22z'%20fill%3D'%23ffffff'%2F%3E%3C%2Fsvg%3E") no-repeat 0 6px black;
-}
-
-.snapscreen.clipshare .snp-range-picker .snp-handle.snp-high {
-    background: url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2027%2044'%3E%3Cpath%20d%3D'M27%2C22L27%2C22L5%2C44l-2.1-2.1L22.8%2C22L2.9%2C2.1L5%2C0L27%2C22L27%2C22z'%20fill%3D'%23ffffff'%2F%3E%3C%2Fsvg%3E") no-repeat -1px 6px black;
-}
-
-.snapscreen.clipshare .snp-range-picker .snp-video-position {
-    top: 0;
-    z-index: 3;
-    width: 8px;
-    height: 45px;
-    border-radius: 4px;
-    background-color: white;
-    position: absolute;
-}
-
-.snapscreen.clipshare .snp-gallery .swiper-container {
-    position: absolute;
-    display: block;
-    height: 100%;
-    max-width: 100%;
-    max-height: 100%;
-    left: 0;
-    right: 0;
-    top: 0;
-    bottom: 0;
-    margin: auto
-}
-
-.snapscreen.clipshare .snp-gallery .swiper-lazy-preloader {
-    animation: none;
-    -webkit-animation: none;
-}
-
-.snapscreen.clipshare .snp-gallery.snp-gallery-loading,
-.snapscreen.clipshare .snp-gallery .swiper-lazy-preloader::after {
-    background: url("../images/loading.gif") no-repeat center;
-}
-
-.snapscreen.clipshare .snp-trim-tools {
-    height: 18px;
-    margin: 1rem 0 0;
-    position: relative;
-}
-
-.snapscreen.clipshare .snp-trim-tools .snp-btn-back {
-    left: 0;
-    position: absolute;
-    cursor: pointer;
-    width: 22px;
-    height: 18px;
-    background: url("../images/trim/back.png") no-repeat center center;
-}
-
-.snapscreen.clipshare .snp-trim-tools .snp-btn-forward {
-    right: 0;
-    position: absolute;
-    cursor: pointer;
-    width: 22px;
-    height: 18px;
-    background: url("../images/trim/forward.png") no-repeat center center;
-}
-
-.snapscreen.clipshare .snp-trim-tools .snp-btn-play {
-    left: calc(50% - 9px);
-    position: absolute;
-    cursor: pointer;
-    width: 18px;
-    height: 18px;
-    background: url("../images/trim/play.png") no-repeat center center;
-}
-
-.snapscreen.clipshare .snp-trim-tools .snp-btn-stop {
-    left: calc(50% - 9px);
-    position: absolute;
-    cursor: pointer;
-    width: 18px;
-    height: 18px;
-    background: url("../images/trim/stop.png") no-repeat center center;
-}
-
-.snapscreen.clipshare .snp-trim-tools .snp-btn-disabled {
-    -webkit-filter: contrast(10%);
-    -moz-filter: contrast(10%);
-    -o-filter: contrast(10%);
-    -ms-filter: contrast(10%);
-    filter: contrast(10%);
 }
