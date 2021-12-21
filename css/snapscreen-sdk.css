@@ -683,7 +683,7 @@
 }
 
 .snapscreen .collection .collection-item.with-margin {
-    margin: 8px 0;
+    margin: 0 0 2px 0;
 }
 
 .snapscreen .collection .collection-item.media {
@@ -907,4 +907,183 @@
 
 .snapscreen.snpbet .tv-search-frame {
     border: 6px solid #ffcc01;
+}
+
+.snapscreen-modal.snapscreen-results {
+    overflow-y: auto;
+    padding-top: 45px;
+    background-color: #f2f2f2;
+}
+
+.snapscreen-modal.snapscreen-results .close:before,
+.snapscreen-modal.snapscreen-results .close:after {
+    background-color: black;
+}
+
+.snapscreen .c-headline-container {
+    display: flex;
+    padding: 16px;
+    background-color: #fff;
+    justify-content: space-between;
+    color: #000;
+    font-style: normal;
+    font-weight: normal;
+    font-size: 14px;
+    line-height: 18px;
+}
+
+.snapscreen .c-headline-container .c-headline-tournament {
+    font-weight: bold;
+}
+
+.snapscreen .c-game-competitors {
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    background-color: #46CD9C;
+    padding: 8px 16px;
+    width: 100%;
+    color: #000
+}
+
+.snapscreen .c-game-competitors .c-game-competitor {
+    padding: 8px 0;
+    font-style: normal;
+    font-weight: bold;
+    font-size: 16px;
+    line-height: 20px;
+    text-align: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+.snapscreen .c-game-competitors .c-game-competitor:last-child {
+    border-bottom: 0;
+}
+
+.snapscreen .info {
+    text-align: center;
+    padding: 32px 0 32px;
+    width: 100%;
+    color: #000;
+    font-size: 0.8em;
+    background-color: #fff;
+}
+
+.snapscreen .loader {
+    text-align: center;
+    padding: 32px 0 32px;
+    width: 100%;
+    position: relative;
+    color: #000;
+    background-color: #fff;
+}
+
+.snapscreen .loader > div, .info > div {
+    display: inline-block;
+    margin: 0 auto;
+    line-height: 16px;
+}
+
+.snapscreen .loader img {
+    float: left;
+    height: 16px;
+    padding: 0 16px;
+}
+
+.snapscreen .odds-header {
+    display: block;
+    position: relative;
+    padding: 0 190px 8px 0;
+    color: #000;
+}
+
+.snapscreen .odds-header .odds-header-sportsbook {
+    font-style: normal;
+    font-weight: bold;
+    font-size: 16px;
+    line-height: 20px;
+    overflow: hidden;
+}
+
+.snapscreen .odds-header .odds-header-market {
+    position: absolute;
+    bottom: 8px;
+    font-style: normal;
+    font-weight: normal;
+    font-size: 10px;
+    line-height: 13px;
+    text-align: right;
+}
+
+.snapscreen .odds-header .odds-header-market.spread {
+    right: 152px;
+}
+
+.snapscreen .odds-header .odds-header-market.money {
+    right: 76px;
+}
+
+.snapscreen .odds-header .odds-header-market.total {
+    right: 0;
+}
+
+.snapscreen .game-line {
+    display: block;
+    position: relative;
+    padding: 8px 228px 8px 0;
+    min-height: 35px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid #E5E5E5;
+    text-decoration: none;
+}
+
+.snapscreen .game-line:last-child {
+    padding-bottom: 0;
+    margin-bottom: 0;
+    border-bottom: 0;
+}
+
+.snapscreen .game-line .title {
+    color: #000;
+    font-style: normal;
+    font-weight: bold;
+    font-size: 12px;
+    line-height: 15px;
+}
+
+.snapscreen .game-line .game-line-box {
+    position: absolute;
+    background-color: #F2F2F2;
+    color: #000;
+    padding: 4px;
+    text-align: right;
+    width: 52px;
+    top: 0;
+}
+
+.snapscreen .game-line .game-line-box.spread {
+    right: 152px;
+}
+
+.snapscreen .game-line .game-line-box.money {
+    right: 76px;
+}
+
+.snapscreen .game-line .game-line-box.total {
+    right: 0;
+}
+
+.snapscreen .game-line .game-line-box .game-line-target {
+    height: 15px;
+    font-style: normal;
+    font-weight: normal;
+    font-size: 9px;
+    line-height: 11px;
+}
+
+.snapscreen .game-line .game-line-box .game-line-odds {
+    font-style: normal;
+    font-weight: bold;
+    font-size: 16px;
+    line-height: 20px;
 }

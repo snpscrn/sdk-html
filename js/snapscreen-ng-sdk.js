@@ -36,33 +36,9 @@ angular.module('snapscreen-sdk', [])
                         snapscreenKit.api.exchange(request, resolve, reject);
                     });
                 },
-                "clipShareApi": function (request) {
-                    return $q(function (resolve, reject) {
-                        snapscreenKit.clipShareApi.exchange(request, resolve, reject);
-                    });
-                },
                 "accessToken": snapscreenKit.accessTokenHolder.accessToken,
                 "currentSnapscreenTimestamp": snapscreenKit.api.currentTimestamp,
-                "webSearchService": snapscreenKit.webSearchService,
-                "tvChannelService": snapscreenKit.tvChannelService,
-                "sportEventService": snapscreenKit.sportEventService,
-                "clipService": snapscreenKit.clipService,
-                "tvSnapViewController": snapscreenKit.tvSnapViewController,
-                "sportSnapViewController": snapscreenKit.sportSnapViewController,
-                "adsSnapViewController": snapscreenKit.adsSnapViewController
+                "sportSnapViewController": snapscreenKit.sportSnapViewController
             };
         }];
-    }])
-    .factory('webSearchService', ['$q', 'snapscreenKit', function webSearchServiceFactory($q, snapscreenKit) {
-        var wrappers = {};
-        Object.keys(snapscreenKit.webSearchService).forEach(function (method) {
-            wrappers[method] = function () {
-                var deferred = $q.defer();
-                var argumentsArray = Array.prototype.slice.call(arguments, 0);
-                argumentsArray.push(deferred.resolve, deferred.reject);
-                snapscreenKit.webSearchService[method].apply(snapscreenKit.webSearchService, argumentsArray);
-                return deferred.promise;
-            };
-        });
-        return wrappers;
     }]);

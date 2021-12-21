@@ -472,7 +472,138 @@
         };
     }
 
-    function blobServiceFactory(logger) {
+    function sportEventOddsServiceFactory(snapscreenApi) {
+        function convertToAmericanOdds(odds) {
+            if (!odds || (odds <= 1)) {
+                return null;
+            } else if (odds < 2) {
+                return Math.round(-1 / (odds - 1) * 100);
+            } else {
+                return Math.round((odds - 1) * 100);
+            }
+        }
+
+        return {
+            "gameLineOddsBySportEventId": function (sportEventId, resolve, reject) {
+                return snapscreenApi.exchange({
+                    method: 'GET',
+                    url: '/sport/events/' + sportEventId + '/odds/lines'
+                }, function onGameLineOdds(response) {
+                    var competitors, competitorIndexes, player, players,
+                        sportsBook, sportsBooks, converted, hasLines, offer, outcome,
+                        result, i, j, k, index;
+
+                    result = {
+                        "competitors": response.data.competitors,
+                        "players": response.data.players
+                    };
+
+                    competitorIndexes = {}
+                    if (response.data.competitors) {
+                        competitors = response.data.competitors;
+                        if (competitors.length < 2) {
+                            resolve(result);
+                            return;
+                        }
+                        for (i = 0; i < competitors.length; i++) {
+                            competitorIndexes[competitors[i].id] = i;
+                        }
+                    }
+
+                    players = {};
+                    if (response.data.players) {
+                        for (i = 0; i < response.data.players.length; i++) {
+                            player = response.data.players[i];
+                            players[player.id] = player;
+                        }
+                    }
+
+
+                    if (!response.data.sportsBooks) {
+                        resolve(result);
+                        return;
+                    }
+
+                    sportsBooks = [];
+                    for (i = 0; i < response.data.sportsBooks.length; i++) {
+                        sportsBook = response.data.sportsBooks[i];
+                        hasLines = false;
+                        converted = {
+                            "name": sportsBook.name,
+                            "lines": []
+                        };
+                        for (j =0; j < competitors.length; j++) {
+                            converted.lines.push({});
+                        }
+
+                        if (sportsBook._links && sportsBook._links.redirect && sportsBook._links.redirect.href) {
+                            converted.redirectUrl = sportsBook._links.redirect.href;
+                        }
+
+                        if (!sportsBook.offers) {
+                            continue;
+                        }
+
+                        for (j = 0; j < sportsBook.offers.length; j++) {
+                            offer = sportsBook.offers[j];
+
+                            if (!offer.outcomes) {
+                                continue;
+                            }
+
+                            for (k = 0; k < offer.outcomes.length; k++) {
+                                outcome = offer.outcomes[k];
+
+                                if (offer.type === 'MONEYLINE' && outcome.type === 'WIN' && outcome.competitorId) {
+                                    index = competitorIndexes[outcome.competitorId];
+                                    if (index !== undefined) {
+                                        hasLines = true;
+                                        converted.lines[index].moneyline = convertToAmericanOdds(outcome.odds);
+                                        if (outcome._links && outcome._links.redirect && outcome._links.redirect.href) {
+                                            converted.lines[index].moneylineUrl = outcome._links.redirect.href;
+                                        }
+                                    }
+                                } else if (offer.type === 'OVER_UNDER' && outcome.type === 'OVER') {
+                                    hasLines = true;
+                                    converted.lines[0].overUnder = outcome.target;
+                                    converted.lines[0].overUnderOdds = convertToAmericanOdds(outcome.odds);
+                                    if (outcome._links && outcome._links.redirect && outcome._links.redirect.href) {
+                                        converted.lines[0].overUnderUrl = outcome._links.redirect.href;
+                                    }
+                                } else if (offer.type === 'OVER_UNDER' && outcome.type === 'UNDER') {
+                                    hasLines = true;
+                                    converted.lines[1].overUnder = outcome.target;
+                                    converted.lines[1].overUnderOdds = convertToAmericanOdds(outcome.odds);
+                                    if (outcome._links && outcome._links.redirect && outcome._links.redirect.href) {
+                                        converted.lines[1].overUnderUrl = outcome._links.redirect.href;
+                                    }
+                                } else if (offer.type === 'SPREAD' && outcome.type === 'WIN' && outcome.competitorId) {
+                                    index = competitorIndexes[outcome.competitorId];
+                                    if (index !== undefined) {
+                                        hasLines = true;
+                                        converted.lines[index].spread = outcome.target;
+                                        converted.lines[index].spreadOdds = convertToAmericanOdds(outcome.odds);
+                                        if (outcome._links && outcome._links.redirect && outcome._links.redirect.href) {
+                                            converted.lines[index].spreadUrl = outcome._links.redirect.href;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        if (hasLines) {
+                            sportsBooks.push(converted);
+                        }
+                    }
+
+                    result.sportsBooks = sportsBooks;
+                    resolve(result);
+                }, reject);
+            }
+        };
+    }
+
+    function blobServiceFactory() {
         function canvasToBlob(canvas, resolve) {
             var mimeType = 'image/jpeg', dataURL, dataUrlParts, dataString, byteString, arrayBuffer, intArray, i;
             if (typeof canvas.toBlob === 'function') {
@@ -553,136 +684,26 @@
             }
         }
 
-        function prepareFileBlob(source, exifOrientation, maxDimension, resolve, reject) {
-            var preferredWidth, preferredHeight, dataCanvas, ctx;
-            if (exifOrientation < 5) {
-                preferredWidth = source.width;
-                preferredHeight = source.height;
-            } else { //has 90 deg rotation
-                preferredWidth = source.height;
-                preferredHeight = source.width;
-            }
-            try {
-                if (preferredWidth > maxDimension) {
-                    preferredHeight = Math.floor(maxDimension * preferredHeight / preferredWidth);
-                    preferredWidth = maxDimension;
-                }
-                dataCanvas = window.document.createElement('canvas');
-                dataCanvas.width = preferredWidth;
-                dataCanvas.height = preferredHeight;
-                ctx = dataCanvas.getContext('2d');
-                switch (exifOrientation) {
-                case 1:
-                    ctx.transform(1, 0, 0, 1, 0, 0);
-                    break;
-                case 2:
-                    ctx.transform(-1, 0, 0, 1, preferredWidth, 0);
-                    break;
-                case 3:
-                    ctx.transform(-1, 0, 0, -1, preferredWidth, preferredHeight);
-                    break;
-                case 4:
-                    ctx.transform(1, 0, 0, -1, 0, preferredHeight);
-                    break;
-                case 5:
-                    ctx.transform(0, 1, 1, 0, 0, 0);
-                    break;
-                case 6:
-                    ctx.transform(0, 1, -1, 0, preferredWidth, 0);
-                    break;
-                case 7:
-                    ctx.transform(0, -1, -1, 0, preferredWidth, preferredHeight);
-                    break;
-                case 8:
-                    ctx.transform(0, -1, 1, 0, 0, preferredHeight);
-                    break;
-                }
-                if (exifOrientation < 5) {
-                    ctx.drawImage(source, 0, 0, source.width, source.height, 0, 0, preferredWidth, preferredHeight);
-                } else { //has 90 deg rotation
-                    ctx.drawImage(source, 0, 0, source.width, source.height, 0, 0, preferredHeight, preferredWidth);
-                }
-                canvasToBlob(dataCanvas, resolve);
-            } catch (e) {
-                reject(e);
-            }
-        }
-
-        function getExifOrientation(arrayBuffer) {
-            var byteBuffer, seekPosition, fileLength, exifMetaFound, i, metaTagLength, littleEndian, endianType,
-                ifdOffset, tagCount, entryPosition, tagValueType;
-            byteBuffer = new DataView(arrayBuffer);
-            if (byteBuffer.getUint16(0) !== 0xFFD8) {
-                logger.logDebug('Not a JPEG');
-                return 0;
-            }
-            seekPosition = 2;
-            fileLength = byteBuffer.byteLength;
-            exifMetaFound = false;
-            while (seekPosition < fileLength) {
-                metaTagLength = byteBuffer.getUint16(seekPosition + 2);
-                if (byteBuffer.getUint16(seekPosition) === 0xFFE1) {
-                    exifMetaFound = true;
-                    break;
-                }
-                seekPosition += 2 + metaTagLength;
-            }
-            if (!exifMetaFound) {
-                return 0;
-            }
-            seekPosition += 4; //skip length definitions
-            for (i = 0; i < 4; i += 1) {
-                if ('Exif'.charCodeAt(i) !== byteBuffer.getUint8(seekPosition + i)) {
-                    logger.logWarn('Not valid Exif data');
-                    return 0;
-                }
-            }
-            seekPosition += 6;//skip Exif string and 0x0000
-            endianType = byteBuffer.getUint16(seekPosition);
-            if (endianType === 0x4949) {//II
-                littleEndian = true;
-            } else if (endianType === 0x4D4D) {//MM
-                littleEndian = false;
-            } else {
-                logger.logWarn('Not valid TIFF data (Failed to detect endianness type) ' + endianType.toString(16));
-                return 0;
-            }
-            //skip "42" header
-            ifdOffset = byteBuffer.getUint32(seekPosition + 4, littleEndian);
-            if (ifdOffset < 8) {
-                logger.logWarn('Not valid TIFF data (IFD offset less then header ' + ifdOffset + ')');
-                return 0;
-            }
-            seekPosition += ifdOffset;
-            tagCount = byteBuffer.getUint16(seekPosition, littleEndian);
-            logger.logDebug('tag count: ' + tagCount);
-            seekPosition += 2;
-            for (i = 0; i < tagCount; i += 1) {
-                entryPosition = seekPosition + i * 12;
-                if (byteBuffer.getUint16(entryPosition, littleEndian) === 0x0112) { //Orientation
-                    logger.logDebug('orientation found');
-                    tagValueType = byteBuffer.getUint16(entryPosition + 2, littleEndian);
-                    if (tagValueType === 3) {//SHORT
-                        logger.logDebug('orientation SHORT value found');
-                        return byteBuffer.getUint16(entryPosition + 8, littleEndian);
-                    }
-                    if (tagValueType === 4) {//LONG
-                        logger.logDebug('orientation LONG value found');
-                        return byteBuffer.getUint32(entryPosition + 8, littleEndian);
-                    }
-                }
-            }
-            return 0;
-        }
-
         return {
-            "prepareStreamBlob": prepareStreamBlob,
-            "prepareFileBlob": prepareFileBlob,
-            "getExifOrientation": getExifOrientation
+            "prepareStreamBlob": prepareStreamBlob
         };
     }
 
     function templateEngineFactory(templates) {
+        function renderTemplate(templateCode, model) {
+            if (!model) {
+                model = {};
+            }
+            return templates[templateCode].replace(/:{(\w+)}:/g, function(match, name) {
+                return model[name];
+            });
+        }
+
+        var domParser = new DOMParser();
+        function renderTemplateToDom(templateCode, model) {
+            return domParser.parseFromString(renderTemplate(templateCode, model), "text/html").body.firstChild;
+        }
+
         function loadTemplate(templateCode, target, model) {
             var suffix = Date.now() + '_' + Math.round(10000000 * Math.random());
             if (model) {
@@ -692,24 +713,28 @@
                     suffix: suffix
                 };
             }
-            target.innerHTML = templates[templateCode].replace(/:{(\w+)}:/g, function(match, name) {
-                return model[name];
-            });
+            target.innerHTML = renderTemplate(templateCode, model);
             return function elementAccessor(id) {
                 return target.querySelector('#snapscreen' + suffix + id);
             };
         }
 
         return {
-            "load": loadTemplate
+            "load": loadTemplate,
+            "render": renderTemplateToDom
         };
     }
 
     function DefaultNavigationBehavior(controller, snapComponent, templateEngine, options) {
-        var modal, modalTemplate, vibrate, vibrateDelegate;
+        var modal, modalTemplate, vibrate, vibrateDelegate, sportEventOddsController = null;
 
         function disposeController() {
-            controller.dispose();
+            if (sportEventOddsController === null) {
+                controller.dispose();
+            } else {
+                sportEventOddsController.dispose();
+                sportEventOddsController = null;
+            }
         }
 
         function close() {
@@ -721,6 +746,10 @@
             modal.setAttribute('class', 'snapscreen-modal');
             if (controller.isActive()) {
                 return;
+            }
+            if (sportEventOddsController !== null) {
+                sportEventOddsController.dispose();
+                sportEventOddsController = null;
             }
             if (typeof options.navigator !== 'undefined' &&
                 typeof options.navigator.navigateToComponent === 'function') {
@@ -758,6 +787,17 @@
                     options.onResultEntry(resultEntry, snapTimestamp, screenQuadrangle);
                 }
             }
+        };
+
+        this.navigateToSportEventOdds = function (sportEvent, tvChannel) {
+            disposeController();
+            modal.setAttribute('class', 'snapscreen-modal snapscreen-results');
+            if (modal.parentNode !== document.body) {
+                document.body.appendChild(modal);
+            }
+            modalTemplate('site').appendChild(snapComponent);
+            sportEventOddsController = controller.createSportEventOddsController(sportEvent, tvChannel);
+            sportEventOddsController.appendTo(snapComponent);
         };
 
         modal = document.createElement('div');
@@ -838,41 +878,6 @@
             var cameraSwitchButton = template('switch');
             if (cameraSwitchButton) {
                 cameraSwitchButton.removeAttribute('disabled');
-            }
-        };
-    }
-
-    function FileUiBlocker(template) {
-        var BLOCK_STYLE_NAME = 'file-processing';
-
-        this.block = function () {
-            template('file').setAttribute('disabled', 'disabled');
-            var label = template('label'),
-                cssClass = label.getAttribute('class');
-            if (cssClass && cssClass.length > 0) {
-                cssClass += ' ';
-            }
-            if (cssClass.indexOf(BLOCK_STYLE_NAME) === -1) {
-                cssClass += BLOCK_STYLE_NAME;
-                label.setAttribute('class', cssClass);
-            }
-        };
-
-        this.unblock = function () {
-            template('file').removeAttribute('disabled');
-            var idx, to, from,
-                label = template('label'),
-                cssClass = label.getAttribute('class');
-            if (cssClass) {
-                idx = cssClass.indexOf(BLOCK_STYLE_NAME);
-                if (idx > 0) {
-                    from = idx;
-                    to = idx + BLOCK_STYLE_NAME.length;
-                    if (idx - 1 > 0 && cssClass.charAt(idx - 1) === ' ') {
-                        from -= 1;
-                    }
-                    label.setAttribute('class', cssClass.substr(0, from) + cssClass.substr(to));
-                }
             }
         };
     }
@@ -1255,223 +1260,111 @@
         container.addEventListener('touchend', onTouchEnd);
     }
 
-    function RangePickerController() {
-        var container, maxPtr, maxOffset, maxValue, minPtr, minOffset, minValue, videoPosition, minDiff, maxDiff,
-            barWidth, handleHalfWidth, offsetRange, valueRange, settings, events, listeners, changeListener;
+    function SnapscreenSportEventOddsController(logger, templateEngine, sportEventOddsService, sportEvent, tvChannel) {
+        var template;
 
-        function offset(element, percent) {
-            element.style.left = (percent * offsetRange / 100) + "px";
+        function numberToString(number) {
+            return number < 10 ? '0' + number.toString() : number.toString();
         }
 
-        function halfWidth(element) {
-            return element.offsetWidth / 2;
+        function formatDate(date) {
+            return numberToString(date.getHours()) + ':' + numberToString(date.getMinutes());
         }
 
-        function width(element) {
-            return element.offsetWidth;
-        }
+        function onOddsLoaded(odds) {
+            var container, sportsBook, sportsBookElement, line, lineElement, competitor, i, j;
 
-        function contain(value) {
-            if (isNaN(value)) {
-                return value;
-            }
-            return Math.min(Math.max(0, value), 100);
-        }
-
-        function roundStep(value) {
-            var decimals, remainder, roundedValue, steppedValue;
-            remainder = (value - settings.floor) % settings.step;
-            steppedValue = remainder > (settings.step / 2) ? value + settings.step - remainder : value - remainder;
-            decimals = Math.pow(10, settings.precision);
-            roundedValue = steppedValue * decimals / decimals;
-            return parseFloat(roundedValue.toFixed(settings.precision));
-        }
-
-        function percentOffset(offset) {
-            return contain(((offset - minOffset) / offsetRange) * 100);
-        }
-
-        function percentValue(value) {
-            return contain(((value - minValue) / valueRange) * 100);
-        }
-
-        function dimensions() {
-            handleHalfWidth = halfWidth(minPtr);
-            barWidth = width(container);
-            minOffset = 0;
-            maxOffset = barWidth - width(minPtr);
-            minValue = settings.floor;
-            maxValue = settings.ceiling;
-            minDiff = settings.min;
-            maxDiff = settings.max;
-            valueRange = maxValue - minValue;
-            offsetRange = maxOffset - minOffset;
-        }
-
-        function setPointers() {
-            offset(minPtr, percentValue(settings.low));
-            offset(maxPtr, percentValue(settings.high));
-        }
-
-        function updateDOM() {
-            dimensions();
-            setPointers();
-        }
-
-        function createHandlerListeners(handle, ref, events) {
-            function onStart(event) {
-                handle.classList.add('active');
-                event.stopPropagation();
-                event.preventDefault();
-                document.addEventListener(events.move, onMove);
-                document.addEventListener(events.end, onEnd);
+            console.log("Odds", odds);
+            if (!odds.sportsBooks) {
+                showNoLinesInfo();
+                return;
             }
 
-            function onMove(event) {
-                var eventX, newOffset, newPercent, newValue, changed;
-                eventX = event.clientX || (typeof event.touches !== 'undefined' ? event.touches[0].clientX : void 0) || (typeof event.originalEvent !== 'undefined' ? typeof event.originalEvent.changedTouches !== 'undefined' ? event.originalEvent.changedTouches[0].clientX : void 0 : void 0) || 0;
-                newOffset = eventX - container.getBoundingClientRect().left - handleHalfWidth;
-                newOffset = Math.max(Math.min(newOffset, maxOffset), minOffset);
-                newPercent = percentOffset(newOffset);
-                newValue = minValue + (valueRange * newPercent / 100.0);
-                switch (ref) {
-                    case 'low':
-                        if (newValue + minDiff > settings.high) {
-                            if (newValue + minDiff >= maxValue) {
-                                return;
-                            }
-                            settings.high = newValue + minDiff;
-                        } else if (newValue + maxDiff < settings.high) {
-                            settings.high = newValue + maxDiff;
-                        }
-                        break;
-                    case 'high':
-                        if (settings.low > newValue - minDiff) {
-                            if (newValue - minDiff < minValue) {
-                                return;
-                            }
-                            settings.low = newValue - minDiff;
-                        } else if (settings.low < newValue - maxDiff) {
-                            settings.low = newValue - maxDiff;
-                        }
-                }
-                newValue = roundStep(newValue);
-                changed = settings[ref] !== newValue;
-                settings[ref] = newValue;
-                setPointers();
-                if (changed && changeListener) {
-                    changeListener(settings.low, settings.high, ref);
+            container = template('content');
+            container.innerHTML = '';
+
+            var collection = document.createElement('DIV');
+            collection.setAttribute('class', 'collection');
+
+            container.appendChild(collection);
+
+            for (i = 0; i < odds.sportsBooks.length; i++) {
+                sportsBook = odds.sportsBooks[i];
+                sportsBookElement = templateEngine.render('sport-event-odds-sports-book', sportsBook);
+                collection.appendChild(sportsBookElement);
+
+                for (j = 0; j < sportsBook.lines.length; j++) {
+                    line = sportsBook.lines[j];
+                    competitor = odds.competitors[j];
+
+                    lineElement = templateEngine.render('sport-event-odds-line', {
+                        "redirectUrl": sportsBook.redirectUrl,
+                        "competitorName": competitor.name
+                    });
+                    sportsBookElement.appendChild(lineElement);
+
+                    if (line.spreadOdds) {
+                        lineElement.appendChild(templateEngine.render('sport-event-odds-spread', line));
+                    }
+                    if (line.moneyline) {
+                        lineElement.appendChild(templateEngine.render('sport-event-odds-money', line));
+                    }
+                    if (line.overUnderOdds && j === 0) {
+                        lineElement.appendChild(templateEngine.render('sport-event-odds-over', line));
+                    }
+                    if (line.overUnderOdds && j === 1) {
+                        lineElement.appendChild(templateEngine.render('sport-event-odds-under', line));
+                    }
                 }
             }
+        }
 
-            function onEnd () {
-                handle.classList.remove('active');
-                document.removeEventListener(events.move, onMove);
-                document.removeEventListener(events.end, onEnd);
-            }
+        function onOddsLoadFailed(reason) {
+            logger.logError('Failed to load odds, reason ' + reason);
 
-            return {
-                bind: function() {
-                    handle.addEventListener(events.start, onStart);
-                },
-                unbind: function() {
-                    handle.removeEventListener(events.start, onStart);
-                    handle.removeEventListener(events.move, onMove);
-                    handle.removeEventListener(events.end, onEnd);
+            showNoLinesInfo();
+        }
 
-                    document.removeEventListener(events.move, onMove);
-                    document.removeEventListener(events.end, onEnd);
+        function showNoLinesInfo() {
+            var container = template('content');
+            templateEngine.load('sport-event-odds-no-lines', container);
+        }
+
+        this.appendTo = function (target) {
+            var team1Name, team2Name;
+
+            if (sportEvent.competitors) {
+                if (sportEvent.competitors.length > 0) {
+                    team1Name = sportEvent.competitors[0].name;
+                } else {
+                    team1Name = '';
                 }
-            };
-        }
-
-        function bindHandlerListeners() {
-            listeners = [
-                createHandlerListeners(minPtr, 'low', events.mouse),
-                createHandlerListeners(minPtr, 'low', events.touch),
-                createHandlerListeners(maxPtr, 'high', events.mouse),
-                createHandlerListeners(maxPtr, 'high', events.touch)
-            ];
-
-            for (var i = 0; i < listeners.length; i++) {
-                listeners[i].bind();
-            }
-
-            window.addEventListener('resize', updateDOM);
-        }
-
-        function unbindHandlerListeners() {
-            if (listeners) {
-                for (var i = 0; i < listeners.length; i++) {
-                    listeners[i].unbind();
+                if (sportEvent.competitors.length > 1) {
+                    team2Name = sportEvent.competitors[1].name;
+                } else {
+                    team2Name = '';
                 }
+            } else {
+                team1Name = '';
+                team2Name = '';
             }
 
-            window.removeEventListener('resize', updateDOM);
-        }
+            template = templateEngine.load('sport-event-odds', target, {
+                "tournament": sportEvent.tournament,
+                "tvChannelName": tvChannel.name,
+                "startTime": formatDate(new Date(sportEvent.startTime)),
+                "team1Name": team1Name,
+                "team2Name": team2Name
+            });
 
-        events = {
-            mouse: {
-                start: 'mousedown',
-                move: 'mousemove',
-                end: 'mouseup'
-            },
-            touch: {
-                start: 'touchstart',
-                move: 'touchmove',
-                end: 'touchend'
-            }
-        };
-
-        this.settings = function(values) {
-            var floor = typeof values.floor === 'number' ? values.floor : 0;
-            var ceiling = values.ceiling;
-            settings = {
-                "floor": floor,
-                "ceiling": ceiling,
-                "step": typeof values.step === 'number' ? values.step : 1,
-                "precision": typeof values.precision === 'number' ? values.precision : 0,
-                "low": values.low,
-                "high": values.high,
-                "min": typeof values.min === 'number' ? values.min : 0,
-                "max": typeof values.max === 'number' ? values.max : ceiling - floor
-            };
-        };
-
-        this.changeListener = function(value) {
-            changeListener = value;
-        };
-
-        this.appendTo = function (element) {
-            unbindHandlerListeners();
-
-            container = element;
-            minPtr = element.childNodes[0];
-            maxPtr = element.childNodes[1];
-            videoPosition = element.childNodes[2];
-            videoPosition.style.display = 'none';
-            bindHandlerListeners();
-            setTimeout(updateDOM);
-        };
-
-        this.updateVideoPosition = function(position, duration) {
-            var positionStart = minPtr.offsetLeft + width(minPtr);
-            var positionEnd = maxPtr.offsetLeft - width(videoPosition);
-            videoPosition.style.left = (positionStart + (position / duration) * (positionEnd - positionStart)).toFixed(3) + "px";
-            videoPosition.style.display = 'block';
-        };
-
-        this.hideVideoPosition = function() {
-            videoPosition.style.display = 'none';
+            sportEventOddsService.gameLineOddsBySportEventId(sportEvent.id, onOddsLoaded, onOddsLoadFailed);
         };
 
         this.dispose = function () {
-            unbindHandlerListeners();
-            container = minPtr = maxPtr = videoPosition = listeners = null;
         };
     }
 
-    function SnapscreenSnapViewController(logger, snapService, blobService, analytics, options) {
+    function SnapscreenSnapViewController(logger, snapService, sportEventOddsService, blobService, analytics, options) {
         var self = this, active = false, snapTimestamp = 0, snapComponent,
             videoDevices, zoom, video, viewFrame, checkCameraTimeout, autoSnapTimeout, autoSnapStatus, currentStream,
             storage, blocked, errorMessage, feedbackMessage, uiNavigator, uiBlocker, templateEngine,
@@ -1485,33 +1378,23 @@
             AUTOSNAP_STATUS_SNAP_REQUESTED = 'SNAP_REQUESTED';
 
         function SnapButton() {
-            var snapButton, withoutInputFile = false;
+            var snapButton;
 
             function snapButtonClick(e) {
-                if (withoutInputFile || needToShowTutorial() || videoDevices.isSupported()) {
-                    e.preventDefault();
-                    uiNavigator.navigateToComponent(self);
-                }
-                if (!needToShowTutorial() && videoDevices.isSupported()) {
-                    checkCamera(); // needed for browsers which supports access to camera via gesture only.
-                }
+                e.preventDefault();
+                uiNavigator.navigateToComponent(self);
             }
 
-            function bindTo(button, file) {
+            function bindTo(button) {
                 button.addEventListener('click', snapButtonClick);
-                if (file) {
-                    file.addEventListener('change', fileChanged);
-                } else {
-                    withoutInputFile = true;
-                }
-
             }
+
             function init() {
                 if (!snapButton) {
                     snapButton = document.createElement('div');
                     snapButton.setAttribute('class', options.cssClass);
                     var template = templateEngine.load('button', snapButton);
-                    bindTo(template('label'), template('file'));
+                    bindTo(template('label'));
                 }
             }
 
@@ -1709,38 +1592,9 @@
             return img.width > 0 && img.height > 0;
         }
 
-        function fileChanged(event) {
-            var exifOrientation = 0, img, fileReader, file;
-            if (event.target.files.length > 0) {
-                uiNavigator.navigateToComponent(self);
-                uiBlocker.block();
-                img = new Image();
-                img.onerror = onDataError;
-                img.onload = function () {
-                    if (isImageValid(img)) {
-                        blobService.prepareFileBlob(img, exifOrientation, SNAP_MAX_DIMENSION, onDataReady, onDataError);
-                    } else {
-                        onDataError();
-                    }
-                    window.URL.revokeObjectURL(img.src);
-                };
-                fileReader = new FileReader();
-                file = event.target.files[0];
-                fileReader.onload = function (e) {
-                    logger.logDebug('Got file of length ' + e.target.result.byteLength);
-                    exifOrientation = blobService.getExifOrientation(e.target.result);
-                    img.src = window.URL.createObjectURL(file);
-                };
-                fileReader.onerror = onDataError;
-                fileReader.readAsArrayBuffer(file);
-            }
-        }
-
         function switchFileMode() {
             disposeStream();
-            var template = templateEngine.load('file', snapComponent);
-            template('file').addEventListener('change', fileChanged);
-            replaceBlocker(new FileUiBlocker(template));
+            templateEngine.load('file', snapComponent);
         }
 
         function stopEventPropagation(event) {
@@ -1830,11 +1684,6 @@
                 snapComponent.removeChild(tutorial);
             }
 
-            function onTutorialFileChanged(event) {
-                close();
-                fileChanged(event);
-            }
-
             function onTutorialSnapClick(event) {
                 storage.snapscreenTvSearchVisited = true;
                 if (videoDevices.isSupported()) {
@@ -1846,7 +1695,6 @@
 
             tutorial = document.createElement('div');
             tutorialTemplate = templateEngine.load('tutorial', tutorial);
-            tutorialTemplate('file').addEventListener('change', onTutorialFileChanged);
             tutorialTemplate('label').addEventListener('click', onTutorialSnapClick);
             snapComponent.appendChild(tutorial);
         }
@@ -1891,6 +1739,13 @@
         this.createSnapButton = function () {
             return new SnapButton();
         };
+        this.createSportEventOddsController = function(sportEvent, tvChannel) {
+            return new SnapscreenSportEventOddsController(logger, templateEngine,
+                sportEventOddsService, sportEvent, tvChannel);
+        };
+        this.showSportEventOdds = function (resultEntry) {
+            uiNavigator.navigateToSportEventOdds(resultEntry.sportEvent, resultEntry.tvChannel);
+        };
 
         options = extend({
             "vibrate": false,
@@ -1914,12 +1769,8 @@
                 '<button id="snapscreen:{suffix}:snap" class="tv-search-button"><i class="icon-camera icon"></i></button>' +
                 '<button id="snapscreen:{suffix}:switch" class="switch-camera-button"><i class="icon-refresh icon"></i></button>' +
                 '</div>',
-            "file": '<div class="tv-search-file"><input id="snapscreen:{suffix}:file" class="tv-search-input" type="file" accept="image/*;capture=camera"/>' +
-                '<label id="snapscreen:{suffix}:label" class="tv-search-label" for="snapscreen:{suffix}:file">' +
-                '<div><i class="icon-camera icon"></i><span>Click to access your camera!</span></div></label></div>' +
-                '<div class="tv-search-fallback-message">Please allow camera access to make Snapping work.</div>',
-            "button": '<input id="snapscreen:{suffix}:file" class="tv-search-input" type="file" accept="image/*;capture=camera"/>' +
-                '<label id="snapscreen:{suffix}:label" class="tv-search-button" for="snapscreen:{suffix}:file">' +
+            "file": '<div class="tv-search-fallback-message">Please allow camera access to make Snapping work.</div>',
+            "button": '<label id="snapscreen:{suffix}:label" class="tv-search-button">' +
                 '<i class="icon-camera icon"></i>' +
                 '</label>',
             "modal": '<div id="snapscreen:{suffix}:site">' +
@@ -1930,8 +1781,7 @@
             "tutorial": '<div class="dialog dialog--open">' +
                 '<div class="dialog__overlay"></div>' +
                 '<div class="dialog__content">' +
-                '<input id="snapscreen:{suffix}:file" class="tv-search-input" type="file" accept="image/*;capture=camera"/>' +
-                '<label id="snapscreen:{suffix}:label" for="snapscreen:{suffix}:file" class="tutorial-label">' +
+                '<label id="snapscreen:{suffix}:label" class="tutorial-label">' +
                 '<div class="tutorial-content">' +
                 '<h3 class="tutorial-title">Zoom and focus on your TV-screen.</h3>' +
                 '<div class="tutorial-picto"><img src="/images/tutorial.png" alt=""/></div>' +
@@ -1940,7 +1790,48 @@
                 '</label>' +
                 '</div>' +
                 '</div>',
-            "waiting": '<div class="tv-search-feedback">Getting access to the camera...</div>'
+            "waiting": '<div class="tv-search-feedback">Getting access to the camera...</div>',
+            "sport-event-odds": '<div class="c-headline-container">' +
+                '<span class="c-headline-tournament">:{tournament}:</span>' +
+                '<span class="c-headline-info">:{tvChannelName}: since :{startTime}:</span>' +
+                '</div>' +
+                '<div class="c-game-competitors">' +
+                '<span class="c-game-competitor">:{team1Name}:</span>' +
+                '<span class="c-game-competitor">:{team2Name}:</span>' +
+                '</div>' +
+                '<div class="c-game-content" id="snapscreen:{suffix}:content">' +
+                '<div class="loader"><div>' +
+                '<img src="/images/loading.gif" alt="Loading" />' +
+                '<span>Loading game lines</span></div></div>' +
+                '</div>',
+            "sport-event-odds-sports-book": '<div class="collection-item with-margin">' +
+                '<div class="odds-header">' +
+                '<div class="odds-header-sportsbook">:{name}:</div>' +
+                '<div class="odds-header-market spread">Spread</div>' +
+                '<div class="odds-header-market money">Money</div>' +
+                '<div class="odds-header-market total">Total</div>' +
+                '</div>' +
+                '</div>',
+            "sport-event-odds-line": '<a class="game-line" href=":{redirectUrl}:" target="_blank" rel="noopener noreferrer">' +
+                '<div class="title">:{competitorName}:</div>' +
+                '</a>',
+            "sport-event-odds-spread": '<div class="game-line-box spread">' +
+                '<div class="game-line-target">:{spread}:</div>' +
+                '<div class="game-line-odds">:{spreadOdds}:</div>' +
+                '</div>',
+            "sport-event-odds-money": '<div class="game-line-box money">' +
+                '<div class="game-line-target"></div>' +
+                '<div class="game-line-odds">:{moneyline}:</div>' +
+                '</div>',
+            "sport-event-odds-over": '<div class="game-line-box total">' +
+                '<div class="game-line-target">O :{overUnder}:</div>' +
+                '<div class="game-line-odds">:{overUnderOdds}:</div>' +
+                '</div>',
+            "sport-event-odds-under": '<div class="game-line-box total">' +
+                '<div class="game-line-target">U :{overUnder}:</div>' +
+                '<div class="game-line-odds">:{overUnderOdds}:</div>' +
+                '</div>',
+            "sport-event-odds-no-lines": '<div class="info"><div><span>Sorry, no game lines found.</span></div></div>'
         }, options.templates);
 
         snapComponent = document.createElement('div');
@@ -1965,7 +1856,8 @@
         accessTokenHolder = accessTokenHolderFactory(logger),
         snapscreenApi = snapscreenApiFactory(logger, accessTokenHolder),
         snapService = snapServiceFactory(logger, snapscreenApi),
-        blobService = blobServiceFactory(logger),
+        sportEventOddsService = sportEventOddsServiceFactory(snapscreenApi),
+        blobService = blobServiceFactory(),
         analytics = analyticsFactory();
 
     /**
@@ -1979,7 +1871,8 @@
         "loggingHandler": logger.handler,
         "accessTokenHolder": accessTokenHolder,
         "sportSnapViewController": function createSnapscreenSportSnapViewController(options) {
-            return new SnapscreenSnapViewController(logger, snapService.sport, blobService, analytics, extend({
+            return new SnapscreenSnapViewController(logger, snapService.sport, sportEventOddsService,
+                blobService, analytics, extend({
                     "cssClass": 'snapscreen snpbet',
                     "noEntryImage": '/images/bet/header-gradient.png'
                 }, options));
