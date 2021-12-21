@@ -390,6 +390,141 @@
         };
     }
 
+    function clipShareApiFactory(accessTokenHolder) {
+        var baseUrl = 'https://clip.snapscreen.com/api';
+
+        function setOrGetBaseUrl() {
+            if (arguments.length === 0) {
+                return baseUrl;
+            }
+            baseUrl = arguments[0];
+            return baseUrl;
+        }
+
+        function exchange(request, resolve, reject, onUploadProgress) {
+            accessTokenHolder.withAccessToken({
+                "resolve": function(accessToken) {
+                    if (!request.hasOwnProperty('responseType')) {
+                        request.responseType = 'json';
+                    }
+                    request.headers = request.headers || {};
+                    request.headers.Authorization = 'Bearer ' + accessToken;
+                    if (!request.absolute) {
+                        request.url = baseUrl + request.url;
+                    }
+                    http(request, resolve, reject, onUploadProgress);
+                },
+                "reject": reject
+            });
+        }
+
+        return {
+            "exchange": exchange,
+            "baseUrl": setOrGetBaseUrl
+        };
+    }
+
+    function webSearchServiceFactory(snapscreenApi) {
+        function normalizeWebSearchResult(resolve, itemMapper) {
+            return function (response) {
+                var resultData = [], i, resultList;
+                if (response.data.hasOwnProperty('_embedded')) {
+                    resultList = response.data._embedded.webSearchResultList;
+                    for (i = 0; i < resultList.length; i += 1) {
+                        resultData.push(itemMapper(resultList[i]));
+                    }
+                }
+                resolve({"content": resultData, "pageInfo": response.data.page});
+            };
+        }
+
+        function mapWebSearchItem(webSearchItem) {
+            var result = {
+                type: webSearchItem.resourceType,
+                uuid: webSearchItem.uuid,
+                requestUUID: webSearchItem.requestUUID,
+                visitUrl: webSearchItem._links.visit.href,
+                title: webSearchItem.title,
+                description: webSearchItem.description,
+                url: webSearchItem.url
+            };
+            if (webSearchItem.thumbnailUrl) {
+                result.thumbnailUrl = webSearchItem.thumbnailUrl;
+                if (webSearchItem.thumbnailWidth && webSearchItem.thumbnailHeight) {
+                    result.thumbnailSize = {
+                        width: webSearchItem.thumbnailWidth,
+                        height: webSearchItem.thumbnailHeight
+                    };
+                }
+            }
+            return result;
+        }
+
+        function mapWebSearchImageItem(webSearchItem) {
+            var result = mapWebSearchItem(webSearchItem);
+            result.sourceUrl = webSearchItem.sourceUrl;
+            result.size = {
+                width: webSearchItem.width,
+                height: webSearchItem.height
+            };
+            return result;
+        }
+
+        function mapWebSearchVideoItem(webSearchItem) {
+            var result = mapWebSearchItem(webSearchItem);
+            result.duration = webSearchItem.duration;
+            return result;
+        }
+
+        function buildWebSearchRequest(tvChannelCode, timestampRef, pageNumber, pageSize) {
+            var request = {
+                tvChannelCode: tvChannelCode,
+                timestampRef: timestampRef,
+                page: pageNumber,
+                size: pageSize
+            };
+            return request;
+        }
+
+        function buildWebSearchRequestWithCreditName(tvChannelCode, timestampRef, creditName, pageNumber, pageSize) {
+            var request = buildWebSearchRequest(tvChannelCode, timestampRef, pageNumber, pageSize);
+            request.creditName = creditName;
+            return request;
+        }
+
+        function internalApiWebSearch(resourceType, itemMapper, request, resolve, reject) {
+            return snapscreenApi.exchange({
+                url: '/web-search/' + resourceType,
+                method: 'GET',
+                params: request
+            }, normalizeWebSearchResult(resolve, itemMapper), reject);
+        }
+
+        function buildApiWebSearch(resourceType, itemMapper) {
+            return function (tvChannelCode, timestampRef, pageNumber, pageSize, resolve, reject) {
+                var request = buildWebSearchRequest(tvChannelCode, timestampRef, pageNumber, pageSize);
+                return internalApiWebSearch(resourceType, itemMapper, request, resolve, reject);
+            };
+        }
+
+        function buildApiWebSearchByCreditName(resourceType, itemMapper) {
+            return function (tvChannelCode, timestampRef, creditName, pageNumber, pageSize, resolve, reject) {
+                var request = buildWebSearchRequestWithCreditName(tvChannelCode, timestampRef, creditName, pageNumber,
+                    pageSize);
+                return internalApiWebSearch(resourceType, itemMapper, request, resolve, reject);
+            };
+        }
+
+        return {
+            "searchSites": buildApiWebSearch('web', mapWebSearchItem),
+            "searchImages": buildApiWebSearch('image', mapWebSearchImageItem),
+            "searchVideos": buildApiWebSearch('video', mapWebSearchVideoItem),
+            "searchSitesByCreditName": buildApiWebSearchByCreditName('web', mapWebSearchItem),
+            "searchImagesByCreditName": buildApiWebSearchByCreditName('image', mapWebSearchImageItem),
+            "searchVideosByCreditName": buildApiWebSearchByCreditName('video', mapWebSearchVideoItem)
+        };
+    }
+
     function snapServiceFactory(logger, snapscreenApi) {
         function snapHttpHeaders(request) {
             var headers = {
@@ -445,6 +580,36 @@
             }, onSearchResult(resolve, reject), onSearchFailed(reject), onUploadProgress);
         }
 
+        function storeFeedback(result, resultEntry) {
+            var feedback = {
+                "requestUuid": result.requestUuid
+            };
+            if (resultEntry && resultEntry.tvChannel) {
+                feedback.selectedResultEntry = {
+                    "tvChannelCode": resultEntry.tvChannel.code,
+                    "timestampRef": resultEntry.timestampRef,
+                    "score": resultEntry.score
+
+                };
+            } else if (resultEntry && resultEntry.advertisement) {
+                feedback.selectedAdEntry = {
+                    "advertisementId": resultEntry.advertisement.id,
+                    "timeOffset": resultEntry.timeOffset,
+                    "score": resultEntry.score
+                };
+            }
+            snapscreenApi.exchange({
+                "method": 'POST',
+                "url": '/tv-search/store-feedback',
+                "headers": {'content-type': 'application/json'},
+                "data": JSON.stringify(feedback)
+            }, function(response) {
+                logger.logDebug('Feedback stored successfully', response);
+            }, function(response) {
+                logger.logDebug('Error during storing feedback', response);
+            });
+        }
+
         return {
             "epg": {
                 "snap": function snapEpg(request, resolve, reject, onUploadProgress) {
@@ -453,12 +618,14 @@
                 "autoSnap": function autoSnapEpg(request, resolve, reject, onUploadProgress) {
                     snap('/tv-search/epg/near-timestamp/by-image', request, autoSnapHttpHeaders,
                         resolve, reject, onUploadProgress);
-                }
+                },
+                "storeFeedback": storeFeedback
             },
             "ads": {
                 "snap": function snapAds(request, resolve, reject, onUploadProgress) {
                     snap('/ads/search/by-image', request, snapHttpHeaders, resolve, reject, onUploadProgress);
-                }
+                },
+                "storeFeedback": storeFeedback
             },
             "sport": {
                 "snap": function snapSport(request, resolve, reject, onUploadProgress) {
@@ -467,7 +634,8 @@
                 "autoSnap": function autoSnapSport(request, resolve, reject, onUploadProgress) {
                     snap('/tv-search/sport/near-timestamp/by-image', request, autoSnapHttpHeaders,
                         resolve, reject, onUploadProgress);
-                }
+                },
+                "storeFeedback": storeFeedback
             }
         };
     }
@@ -705,11 +873,319 @@
         };
     }
 
-    function DefaultNavigationBehavior(controller, snapComponent, templateEngine, options) {
-        var modal, modalTemplate, vibrate, vibrateDelegate;
+    function httpBlobCacheFactory() {
+        var MAX_BLOBS_COUNT = 20;
+
+        var MAX_LIFE_TIME = 10000; //10 sec
+
+        var cache = {};
+
+        var cacheList = [];
+
+        function truncateCacheIfNeeded() {
+            if (cacheList.length > MAX_BLOBS_COUNT) {
+                var buffer = [];
+                var currentTs = Date.now();
+                for (var i = 0; i < cacheList.length; i++) {
+                    var cacheItem = cacheList[i];
+                    if (currentTs - cacheItem.timestamp > MAX_LIFE_TIME) {
+                        window.URL.revokeObjectURL(cacheItem.url);
+                        delete cache[cacheItem.key];
+                    } else {
+                        buffer.push(cacheItem);
+                    }
+                }
+                cacheList = buffer;
+            }
+        }
+
+        return {
+            "computeIfAbsent": function (key, suppler, resolve, reject) {
+                var cacheItem = cache[key];
+                if (cacheItem) {
+                    cacheItem.timestamp = Date.now();
+                    resolve(cacheItem.url);
+                } else {
+                    suppler(function (blobResponse) {
+                        var blobUrl = window.URL.createObjectURL(
+                            new Blob([blobResponse.data], {type: blobResponse.headers('content-type')}));
+                        cacheItem = {
+                            url: blobUrl,
+                            key: key,
+                            timestamp: Date.now()
+                        };
+                        cache[key] = cacheItem;
+                        cacheList.push(cacheItem);
+                        truncateCacheIfNeeded();
+                        resolve(blobUrl);
+                    }, reject);
+                }
+            }
+        };
+    }
+
+    function tvChannelServiceFactory(snapscreenApi, httpBlobCache) {
+        return {
+            "resolveLiveImage": function (tvChannel, resolve, reject) {
+                var liveImage = tvChannel._links.liveImage;
+                if (liveImage) {
+                    if (liveImage.secured) {
+                        var imgUrl = liveImage.href;
+                        httpBlobCache.computeIfAbsent(imgUrl, function (cacheResolve, cacheReject) {
+                            return snapscreenApi.exchange({
+                                method: 'GET',
+                                absolute: true,
+                                url: imgUrl,
+                                responseType: 'arraybuffer'
+                            }, cacheResolve, cacheReject);
+                        }, resolve, reject);
+                    } else {
+                        resolve(liveImage.href);
+                    }
+                } else if (tvChannel._links && tvChannel._links.poster) {
+                    resolve(tvChannel._links.poster.href);
+                } else {
+                    reject({status: 404});
+                }
+            }
+        };
+    }
+
+    function tsImageServiceFactory(snapscreenApi, httpBlobCache) {
+        return {
+            "downloadAtTimestamp": function (tvChannelId, timestampRef, resolve, reject) {
+                var uri = '/ts-images/' + tvChannelId + '/' + timestampRef + '/download';
+                httpBlobCache.computeIfAbsent(uri, function (cacheResolve, cacheReject) {
+                    return snapscreenApi.exchange({
+                        method: 'GET',
+                        url: uri,
+                        responseType: 'arraybuffer'
+                    }, cacheResolve, cacheReject);
+                }, resolve, reject);
+            }
+        };
+    }
+
+    function adImageServiceFactory(snapscreenApi, httpBlobCache) {
+        return {
+            "downloadAtTimeOffset": function (advertisementId, timeOffset, resolve, reject) {
+                var uri = '/ads/images/' + advertisementId + '/' + timeOffset + '/download';
+                httpBlobCache.computeIfAbsent(uri, function (cacheResolve, cacheReject) {
+                    return snapscreenApi.exchange({
+                        method: 'GET',
+                        url: uri,
+                        responseType: 'arraybuffer'
+                    }, cacheResolve, cacheReject);
+                }, resolve, reject);
+            }
+        };
+    }
+
+    function sportEventServiceFactory() {
+        return {
+            "toString": function (sportEvent) {
+                if (!sportEvent) {
+                    return '';
+                }
+                if (sportEvent.competitors) {
+                    var result = '', i;
+                    for (i = 0; i < sportEvent.competitors.length; i+= 1) {
+                        if (result.length > 0) {
+                            result += ' vs ';
+                        }
+                        result += sportEvent.competitors[i].name;
+                    }
+                    return result;
+                }
+                return sportEvent.sport + ' - ' + sportEvent.category + ' - ' + sportEvent.tournament;
+            }
+        };
+    }
+
+    function clipServiceFactory(clipShareApi) {
+        var storedPreview = {};
+        function loadPreview(params, resolve, reject) {
+            if ((params.tvChannelId && params.tvChannelId === storedPreview.tvChannelId &&
+                params.timestampRef && params.timestampRef === storedPreview.timestampRef) ||
+                params.advertisementId && params.advertisementId === storedPreview.advertisementId &&
+                params.timeOffset && params.timeOffset === storedPreview.timeOffset) {
+                resolve(storedPreview);
+            } else {
+                clipShareApi.exchange({
+                    url: '/clips/preview',
+                    method: 'POST',
+                    responseType: 'json',
+                    headers: {'content-type': 'application/x-www-form-urlencoded'},
+                    params: params
+                }, function (response) {
+                    storedPreview = params;
+                    storedPreview.data = response.data;
+                    resolve(response);
+                }, reject);
+            }
+        }
+        return {
+            createTvClip: function createTvClip(tvChannelId, timestampRefFrom, timestampRefTo, timestampRefThumb, resolve, reject) {
+                clipShareApi.exchange({
+                    url: '/clips',
+                    method: 'POST',
+                    responseType: 'json',
+                    headers: {'content-type': 'application/x-www-form-urlencoded'},
+                    params: {
+                        tvChannelId: tvChannelId,
+                        timestampRefFrom: timestampRefFrom,
+                        timestampRefTo: timestampRefTo,
+                        timestampRefThumb: timestampRefThumb
+                    }
+                }, resolve, reject);
+            },
+            previewTvClip: function previewTvClip(tvChannelId, timestampRef, resolve, reject) {
+                return loadPreview({tvChannelId: tvChannelId, timestampRef: timestampRef}, resolve, reject);
+            },
+            createAdClip: function createAdClip(advertisementId, timeOffsetFrom, timeOffsetTo, timeOffsetThumb, resolve, reject) {
+                clipShareApi.exchange({
+                    url: '/clips',
+                    method: 'POST',
+                    responseType: 'json',
+                    headers: {'content-type': 'application/x-www-form-urlencoded'},
+                    params: {
+                        advertisementId: advertisementId,
+                        timeOffsetFrom: timeOffsetFrom,
+                        timeOffsetTo: timeOffsetTo,
+                        timeOffsetThumb: timeOffsetThumb
+                    }
+                }, resolve, reject);
+            },
+            previewAdClip: function previewAdClip(advertisementId, timeOffset, resolve, reject) {
+                return loadPreview({advertisementId: advertisementId, timeOffset: timeOffset}, resolve, reject);
+            }
+        };
+    }
+
+    function SnapscreenSearchResults(snapComponent, noEntryImage, uiNavigator, sportEventService,
+                                     templateEngine, tvChannelService, tsImageService, adImageService) {
+        function numberToString(number) {
+            return number < 10 ? '0' + number.toString() : number.toString();
+        }
+
+        function formatDate(date) {
+            var monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September',
+                'October', 'November', 'December'];
+
+            return monthNames[date.getMonth()] + ' ' + date.getDate() + ', ' +
+                numberToString(date.getHours()) + ':' + numberToString(date.getMinutes());
+        }
+
+        function showEntryImage(figure, resultEntry) {
+            function setEntryImage(url) {
+                figure.setAttribute('class', 'img-container');
+
+                var image = document.createElement('IMG');
+                image.setAttribute('class', 'list teaser');
+                image.setAttribute('src', url);
+                figure.appendChild(image);
+
+                resultEntry.imageUrl = url;
+            }
+
+            function setNoEntryImage() {
+                setEntryImage(noEntryImage);
+            }
+
+            function showTvChannelLiveImage() {
+                tvChannelService.resolveLiveImage(resultEntry.tvChannel, setEntryImage, setNoEntryImage);
+            }
+
+            if (resultEntry._links && resultEntry._links.frame && resultEntry._links.frame.href) {
+                setEntryImage(resultEntry._links.frame.href);
+            } else if (resultEntry.advertisement) {
+                adImageService.downloadAtTimeOffset(resultEntry.advertisement.id, resultEntry.timeOffset,
+                    setEntryImage, setNoEntryImage);
+            } else {
+                tsImageService.downloadAtTimestamp(resultEntry.tvChannel.id, resultEntry.timestampRef,
+                    setEntryImage, showTvChannelLiveImage);
+            }
+        }
+
+        function renderSearchResultEntry(resultEntry, parent) {
+            var container, element, image;
+
+            container = document.createElement('A');
+            container.setAttribute('class', 'collection-item media right with-margin');
+            container.setAttribute('href', '#');
+            container.addEventListener('click', function(event) {
+                event.preventDefault();
+                uiNavigator.navigateToResult(resultEntry);
+            });
+
+            element = document.createElement('FIGURE');
+            element.setAttribute('class', 'img-container preloader');
+            container.appendChild(element);
+            showEntryImage(element, resultEntry);
+
+            if (resultEntry.tvChannel && resultEntry.tvChannel._links && resultEntry.tvChannel._links.logo) {
+                element = document.createElement('DIV');
+                element.setAttribute('class', 'channel-logo');
+
+                image = document.createElement('IMG');
+                image.setAttribute('src', resultEntry.tvChannel._links.logo.href);
+                image.setAttribute('alt', resultEntry.tvChannel.name);
+
+                element.appendChild(image);
+                container.appendChild(element);
+            }
+
+            element = document.createElement('DIV');
+            element.setAttribute('class', 'title');
+            if (resultEntry.epgUnit) {
+                element.innerText = resultEntry.epgUnit.title;
+            } else if (resultEntry.sportEvent) {
+                element.innerText = sportEventService.toString(resultEntry.sportEvent);
+            } else if (resultEntry.advertisement) {
+                element.innerText = resultEntry.advertisement.title;
+            } else {
+                element.innerText = resultEntry.tvChannel.name;
+            }
+            container.appendChild(element);
+
+            if (resultEntry.advertisement) {
+                element = document.createElement('P');
+                element.setAttribute('class', 'small');
+                element.innerText = resultEntry.advertisement.description;
+                container.appendChild(element);
+                container.setAttribute('class', 'collection-item media right with-margin advertisement');
+            } else {
+                element = document.createElement('DIV');
+                element.setAttribute('class', 'meta schedule');
+                element.innerText = formatDate(new Date(resultEntry.timestampRef));
+                container.appendChild(element);
+            }
+
+            parent.appendChild(container);
+        }
+
+        this.showResults = function (target, results) {
+            var template, collection, i;
+
+            target.appendChild(snapComponent);
+            template = templateEngine.load('results', snapComponent);
+            collection = template('collection');
+            for (i = 0; i < results.resultEntries.length; i++) {
+                renderSearchResultEntry(results.resultEntries[i], collection);
+            }
+        };
+    }
+
+    function DefaultNavigationBehavior(controller, snapComponent, snapService, templateEngine, options) {
+        var modal, modalTemplate, vibrate, vibrateDelegate, storedResult, clipShareController = null;
 
         function disposeController() {
-            controller.dispose();
+            if (clipShareController === null) {
+                controller.dispose();
+            } else {
+                clipShareController.dispose();
+                clipShareController = null;
+            }
         }
 
         function close() {
@@ -718,9 +1194,17 @@
         }
 
         this.navigateToComponent = function () {
+            if (storedResult) {
+                snapService.storeFeedback(storedResult);
+                storedResult = null;
+            }
             modal.setAttribute('class', 'snapscreen-modal');
             if (controller.isActive()) {
                 return;
+            }
+            if (clipShareController !== null) {
+                clipShareController.dispose();
+                clipShareController = null;
             }
             if (typeof options.navigator !== 'undefined' &&
                 typeof options.navigator.navigateToComponent === 'function') {
@@ -732,31 +1216,64 @@
         };
 
         this.navigateToResults = function (result) {
+            storedResult = result;
+            var parent = snapComponent.parentNode;
             disposeController();
-            if (modal.parentNode === document.body) {
-                document.body.removeChild(modal);
-            }
-
             if (typeof options.navigator !== 'undefined' && typeof options.navigator.navigateToResults === 'function') {
                 if (modal.parentNode === document.body) {
                     document.body.removeChild(modal);
                 }
                 options.navigator.navigateToResults(result);
             } else {
-                var snapTimestamp, screenQuadrangle, resultEntry;
-                if (result) {
-                    snapTimestamp = result.snapTimestamp;
-                    if (result.screenQuadrangles && result.screenQuadrangles.length > 0) {
-                        screenQuadrangle = result.screenQuadrangles[0];
-                    }
-                }
+                modal.setAttribute('class', 'snapscreen-modal snapscreen-results');
+                controller.showResults(parent, result);
+                vibrate(150);
+            }
+        };
 
-                resultEntry = result.resultEntries[0];
-                if (typeof options.navigator !== 'undefined' && typeof options.navigator.navigateToResult === 'function') {
-                    options.navigator.navigateToResult(resultEntry, snapTimestamp, screenQuadrangle);
-                } else if (typeof options.onResultEntry === 'function') {
-                    options.onResultEntry(resultEntry, snapTimestamp, screenQuadrangle);
+        this.navigateToResult = function (resultEntry) {
+            var snapTimestamp, screenQuadrangle;
+            disposeController();
+            if (modal.parentNode === document.body) {
+                document.body.removeChild(modal);
+            }
+            if (storedResult) {
+                snapTimestamp = storedResult.snapTimestamp;
+                if (storedResult.screenQuadrangles && storedResult.screenQuadrangles.length > 0) {
+                    screenQuadrangle = storedResult.screenQuadrangles[0];
                 }
+                snapService.storeFeedback(storedResult, resultEntry);
+                storedResult = null;
+            }
+            if (typeof options.navigator !== 'undefined' && typeof options.navigator.navigateToResult === 'function') {
+                options.navigator.navigateToResult(resultEntry, snapTimestamp, screenQuadrangle);
+            } else if (typeof options.onResultEntry === 'function') {
+                options.onResultEntry(resultEntry, snapTimestamp, screenQuadrangle);
+            }
+        };
+
+        this.navigateToClipShare = function (resultEntry) {
+            disposeController();
+            modal.setAttribute('class', 'snapscreen-modal snapscreen-results');
+            if (modal.parentNode !== document.body) {
+                document.body.appendChild(modal);
+            }
+            modalTemplate('site').appendChild(snapComponent);
+            clipShareController = controller.createClipShareController(resultEntry);
+            clipShareController.appendTo(snapComponent);
+        };
+
+        this.navigateToCreatedClip = function(clip) {
+            if (modal.parentNode === document.body) {
+                disposeController();
+                document.body.removeChild(modal);
+            }
+            if (typeof options.navigator !== 'undefined' && typeof options.navigator.navigateToCreatedClip === 'function') {
+                options.navigator.navigateToCreatedClip(clip);
+            } else if (typeof options.onClipCreated === 'function') {
+                options.onClipCreated(clip);
+            } else {
+                window.location.href = clip._links.player.href;
             }
         };
 
@@ -916,7 +1433,7 @@
                 });
             } else if (navigator && navigator.mediaDevices && typeof navigator.mediaDevices.enumerateDevices === 'function') {
                 navigator.mediaDevices.enumerateDevices().then(function (mediaDevices) {
-                    var i, label, lcLabel, facing, prevFacing = '';
+                    var i, facing, label, lcLabel;
                     devices = [];
                     for (i = 0; i < mediaDevices.length; i += 1) {
                         if (mediaDevices[i].kind === 'videoinput') {
@@ -925,13 +1442,12 @@
                                 facing = (devices.length % 2 === 0) ? 'user' : 'environment';
                             } else {
                                 lcLabel = label.toLocaleLowerCase();
-                                if (label.endsWith('facing back') || label.endsWith('back camera') || prevFacing === 'user') {
+                                if (lcLabel.endsWith('facing back') || lcLabel.endsWith('back camera')) {
                                     facing = 'environment';
                                 } else {
                                     facing = 'user';
                                 }
                             }
-                            prevFacing = facing;
                             devices.push({
                                 id: mediaDevices[i].deviceId,
                                 label: label,
@@ -1471,14 +1987,519 @@
         };
     }
 
-    function SnapscreenSnapViewController(logger, snapService, blobService, analytics, options) {
-        var self = this, active = false, snapTimestamp = 0, snapComponent,
+    function SnapscreenClipShareController(resultEntry, clipService, analytics,
+                                           templateEngine, uiNavigator, customClipService) {
+        var template, container, poster, buttonBack, buttonPlay, buttonStop, buttonForward, buttonShare;
+        var galleryThumbs, rangePicker, rangePickerSettings, player, playerSource;
+        var processing = false, previewVisible = false, fragment, gallery, galleryThumbnails;
+        var initialSlide = 0, thumbDiff = 3, thumbsPerWindow = 10, windowSize = thumbsPerWindow * thumbDiff,
+            windowStart = 0, startOffset = 0, endOffset = windowSize - 1;
+
+        function showFeedbackMessage(message) {
+            var feedback = template('feedback');
+            if (message) {
+                feedback.innerText = message;
+                feedback.style.display = 'block';
+            } else {
+                feedback.style.display = 'none';
+            }
+        }
+
+        function setProcessingStatus(value) {
+            processing = value;
+            if (value) {
+                buttonShare.setAttribute('disabled', 'disabled');
+            } else {
+                buttonShare.removeAttribute('disabled');
+            }
+        }
+
+        function onClipCreated(response) {
+            analytics.clipShareCreated();
+            setProcessingStatus(false);
+            showFeedbackMessage();
+            uiNavigator.navigateToCreatedClip(response.data);
+        }
+
+        function onClipCreateFailed(reason) {
+            analytics.clipShareCreateFailed();
+            setProcessingStatus(false);
+            if (reason.status === 401 || reason.status === 403) {
+                showFeedbackMessage('Authentication failed, please re-authenticate to continue.');
+            } else if (reason.status === 400 && reason.data && reason.data.message &&
+                reason.data.message.indexOf('does not have associated videos') > 0) {
+                showFeedbackMessage('Failed to share a clip. Video is not available in the selected time frame.');
+            } else {
+                showFeedbackMessage('Failed to share a clip. Please try again.');
+            }
+        }
+
+        function shareClip(event) {
+            var posterTime, service;
+            if (event) {
+                event.preventDefault();
+            }
+
+            if (processing) {
+                return;
+            }
+
+            analytics.clipShareCreate();
+            setProcessingStatus(true);
+            showFeedbackMessage();
+            stopVideo();
+
+            if (fragment.posterTime) {
+                posterTime = fragment.posterTime;
+            } else {
+                posterTime = fragment.startTime;
+            }
+
+            if (customClipService) {
+                service = customClipService;
+            } else {
+                service = clipService;
+            }
+
+            if (resultEntry.advertisement) {
+                service.createAdClip(resultEntry.advertisement.id, fragment.startTime, fragment.endTime, posterTime,
+                    onClipCreated, onClipCreateFailed);
+            } else {
+                service.createTvClip(resultEntry.tvChannel.id, fragment.startTime, fragment.endTime, posterTime,
+                    onClipCreated, onClipCreateFailed);
+            }
+        }
+
+        function setDisabled(element, disabled) {
+            if (disabled) {
+                element.classList.add('snp-btn-disabled');
+            } else {
+                element.classList.remove('snp-btn-disabled');
+            }
+        }
+
+        function setVisible(element, visible) {
+            if (visible) {
+                element.style.display = 'block';
+            } else {
+                element.style.display = 'none';
+            }
+        }
+
+        function setPreviewVisible(visible) {
+            if (previewVisible === visible) {
+                return;
+            }
+            previewVisible = visible;
+            var element = template('player').parentNode;
+            if (visible) {
+                analytics.clipSharePreviewPlay();
+                element.classList.add('snp-gallery-preview');
+            } else {
+                analytics.clipSharePreviewClosed();
+                element.classList.remove('snp-gallery-preview');
+            }
+        }
+
+        function updatePoster(image) {
+            if (poster) {
+                poster.src = image;
+            }
+        }
+
+        function updateFragment() {
+            setDisabled(buttonBack, windowStart === 0);
+            setDisabled(buttonForward, windowStart + windowSize >= gallery.length);
+
+            var startIndex = Math.min(windowStart + startOffset, gallery.length - 1);
+            var startFrame = gallery[startIndex];
+            var startTime = startFrame.timestampRef || startFrame.timeOffset;
+
+            var endIndex = Math.min(windowStart + endOffset, gallery.length - 1);
+            var endFrame = gallery[endIndex];
+            var endTime = endFrame.timestampRef || endFrame.timeOffset;
+
+            var fragmentUrl = startFrame._links.fragment.href;
+            var index = fragmentUrl.lastIndexOf('?d=');
+            if (index > 0) {
+                fragmentUrl = fragmentUrl.substring(0, index);
+            }
+
+            fragment = {
+                href: fragmentUrl + '?d=' + (endTime - startTime),
+                poster: startFrame._links.thumbnail.href,
+                posterTime: startTime,
+                startTime: startTime,
+                endTime: endTime
+            };
+
+            if (previewVisible) {
+                stopVideo();
+                setPreviewVisible(false);
+                rangePicker.hideVideoPosition();
+            }
+        }
+
+        function onThumbGallerySlideChange() {
+            var oldWindowStart = windowStart;
+            if (this.activeIndex + thumbsPerWindow > galleryThumbnails.length) {
+                windowStart = Math.max((galleryThumbnails.length - thumbsPerWindow) * thumbDiff, 0);
+            } else {
+                windowStart = this.activeIndex * thumbDiff;
+            }
+            if (oldWindowStart !== windowStart) {
+                updatePoster(gallery[windowStart + startOffset]._links.thumbnail.href);
+                updateFragment();
+            }
+        }
+
+        function onRangeChanged(low, high, ref) {
+            low = parseInt(low);
+            high = parseInt(high);
+
+            if (low === startOffset && high === endOffset) {
+                return;
+            }
+
+            if (ref === 'low' && startOffset !== low) {
+                updatePoster(gallery[windowStart + low]._links.thumbnail.href);
+            } else if (ref === 'high' && endOffset !== high) {
+                var index = Math.min(windowStart + high, gallery.length - 1);
+                updatePoster(gallery[index]._links.thumbnail.href);
+            }
+            startOffset = low;
+            endOffset = high;
+            updateFragment();
+        }
+
+        function playVideo(event) {
+            if (event) {
+                event.preventDefault();
+            }
+            if (player) {
+                setPreviewVisible(true);
+
+                if (playerSource.file !== fragment.href) {
+                    playerSource = {
+                        "file": fragment.href,
+                        "image": fragment.poster
+                    };
+                    player.load(playerSource);
+                }
+                player.play();
+                onVideoStarted();
+            }
+        }
+
+        function stopVideo(event) {
+            if (event) {
+                event.preventDefault();
+            }
+            if (player) {
+                player.pause();
+                onVideoStopped();
+            }
+        }
+
+        function onVideoStarted() {
+            if (previewVisible) {
+                setVisible(buttonPlay, false);
+                setVisible(buttonStop, true);
+            }
+        }
+
+        function onVideoStopped() {
+            if (previewVisible) {
+                setVisible(buttonPlay, true);
+                setVisible(buttonStop, false);
+            }
+        }
+
+        function onVideoTimeChanged(event) {
+            if (previewVisible && rangePicker) {
+                rangePicker.updateVideoPosition(event.position, event.duration);
+            }
+        }
+
+        function createControls() {
+            template = templateEngine.load('clipShare', container);
+
+            poster = template('poster');
+            buttonBack = template('back');
+            buttonBack.addEventListener('click', moveWindowBack);
+            buttonPlay = template('play');
+            buttonPlay.addEventListener('click', playVideo);
+            buttonStop = template('stop');
+            buttonStop.addEventListener('click', stopVideo);
+            buttonForward = template('forward');
+            buttonForward.addEventListener('click', moveWindowForward);
+            buttonShare = template('share');
+            buttonShare.addEventListener('click', shareClip);
+
+            setDisabled(buttonBack, true);
+            setDisabled(buttonForward, true);
+            setDisabled(buttonPlay, true);
+            setVisible(buttonStop, false);
+            showFeedbackMessage();
+
+            var galleryContainer = template('thumb'), model = {}, frame = null, target = document.createElement('DIV'), i;
+            for (i = 0; i < galleryThumbnails.length; i ++) {
+                frame = galleryThumbnails[i];
+                model.href = frame._links.thumbnail.href;
+                templateEngine.load('galleryItem', target, model);
+                while (target.childNodes.length > 0) {
+                    galleryContainer.appendChild(target.childNodes[0]);
+                }
+            }
+
+            galleryThumbs = new Swiper(template('thumb').parentNode, {
+                lazy: {
+                    loadPrevNext: true,
+                    loadPrevNextAmount: Math.floor(thumbsPerWindow / 2)
+                },
+                preloadImages: false,
+                initialSlide: initialSlide,
+                slidesPerView: thumbsPerWindow,
+                watchSlidesVisibility: true,
+                on: {
+                    slideChange: onThumbGallerySlideChange
+                }
+            });
+
+            rangePicker = new RangePickerController();
+            rangePicker.settings(rangePickerSettings);
+            rangePicker.changeListener(onRangeChanged);
+            rangePicker.appendTo(template('range'));
+
+            player = jwplayer(template('player').getAttribute('id'));
+            player.setup({
+                "file": playerSource.file,
+                "image": playerSource.image,
+                "height": 'auto',
+                "width": '100%',
+                "autostart": false,
+                "preload": 'none',
+                "mute": false
+            });
+            player.on('play', onVideoStarted);
+            player.on('pause', onVideoStopped);
+            player.on('complete', onVideoStopped);
+            player.on('time', onVideoTimeChanged);
+
+            setDisabled(buttonBack, windowStart === 0);
+            setDisabled(buttonForward, windowStart + windowSize >= gallery.length);
+            setDisabled(buttonPlay, false);
+            setVisible(buttonPlay, true);
+            setVisible(buttonStop, false);
+
+            updatePoster(fragment.poster);
+        }
+
+        function findFrameIndex(time) {
+            var low = 0, high = gallery.length - 1, mid, midValue;
+            while (low <= high) {
+                mid = (low + high) >>> 1;
+                midValue = gallery[mid].timestampRef || gallery[mid].timeOffset;
+                if (midValue > time) {
+                    high = mid - 1;
+                } else if (midValue < time) {
+                    low = mid + 1;
+                } else {
+                    return mid;
+                }
+            }
+            return low;
+        }
+
+        function onPreviewLoaded(response) {
+            var frame;
+            if (response.data && response.data._embedded && response.data._embedded.frameList &&
+                Array.isArray(response.data._embedded.frameList) && response.data._embedded.frameList.length > 0) {
+                analytics.clipShareOpened();
+
+                gallery = response.data._embedded.frameList;
+                if (gallery.length <= 10) {
+                    thumbDiff = 1;
+                    thumbsPerWindow = windowSize = gallery.length;
+                } else if (gallery.length <= 20) {
+                    thumbDiff = 2;
+                    thumbsPerWindow = Math.ceil(gallery.length / thumbDiff);
+                    windowSize = thumbsPerWindow * thumbDiff;
+                } else if (gallery.length <= 30) {
+                    thumbDiff = 3;
+                    thumbsPerWindow = Math.ceil(gallery.length / 3);
+                    windowSize = thumbsPerWindow * thumbDiff;
+                }
+
+                galleryThumbnails = [];
+                for (var i = 0; i < response.data._embedded.frameList.length; i += thumbDiff) {
+                    galleryThumbnails.push(response.data._embedded.frameList[i]);
+                }
+
+                if (response.data._links && response.data._links.fragment && response.data._links.thumbnail) {
+                    fragment = extend({
+                        poster: response.data._links.thumbnail.href,
+                        posterTime: resultEntry.timestampRef || resultEntry.timeOffset
+                    }, response.data._links.fragment);
+                } else if (resultEntry._links && resultEntry._links.fragment && resultEntry._links.thumbnail) {
+                    fragment = extend({
+                        poster: resultEntry._links.thumbnail.href,
+                        posterTime: resultEntry.timestampRef || resultEntry.timeOffset
+                    }, resultEntry._links.fragment);
+                } else {
+                    startOffset = findFrameIndex(resultEntry.timestampRef || resultEntry.timeOffset);
+                    endOffset = Math.max(0, startOffset - 15);
+                    frame = gallery[endOffset];
+                    var fragmentUrl = frame._links.fragment.href;
+                    var index = fragmentUrl.lastIndexOf('?d=');
+                    if (index > 0) {
+                        fragmentUrl = fragmentUrl.substring(0, index);
+                    }
+                    fragment = {
+                        href: fragmentUrl + "?d=20000",
+                        poster: gallery[startOffset]._links.thumbnail.href,
+                        posterTime: resultEntry.timestampRef || resultEntry.timeOffset,
+                        startTime: frame.timestampRef || frame.timeOffset,
+                        endTime: (frame.timestampRef || frame.timeOffset) + 20000
+                    };
+                }
+
+                startOffset = findFrameIndex(fragment.startTime);
+                initialSlide = Math.floor(startOffset / thumbDiff);
+                if (initialSlide + thumbsPerWindow > galleryThumbnails.length) {
+                    windowStart = Math.max((galleryThumbnails.length - thumbsPerWindow) * thumbDiff, 0);
+                } else {
+                    windowStart = initialSlide * thumbDiff;
+                }
+                startOffset = startOffset - windowStart;
+                endOffset = findFrameIndex(fragment.endTime) - windowStart;
+                if (endOffset + 2 === windowSize) {
+                    endOffset = windowSize - 1;
+                }
+
+                playerSource = {
+                    "file": fragment.href,
+                    "image": fragment.poster
+                };
+
+                rangePickerSettings = {
+                    "floor": 0,
+                    "ceiling": windowSize - 1,
+                    "step": 1,
+                    "precision": 0,
+                    "low": startOffset,
+                    "high": endOffset,
+                    "min": Math.round(response.data._embedded.settings.minDuration / 1000),
+                    "max": Math.round(response.data._embedded.settings.maxDuration / 1000)
+                };
+
+                setTimeout(createControls);
+            } else {
+                onPreviewLoadFailed();
+            }
+        }
+
+        function onPreviewLoadFailed(response) {
+            if (typeof response === 'undefined') {
+                analytics.clipShareNotFound();
+            } else {
+                analytics.clipShareOpenFailed();
+            }
+            template = templateEngine.load('clipShareError', container);
+        }
+
+        function moveWindowBack(event) {
+            if (event) {
+                event.preventDefault();
+            }
+            windowStart = Math.max(windowStart - windowSize, 0);
+            galleryThumbs.slideTo(Math.floor(windowStart / thumbDiff), 0);
+            updatePoster(gallery[windowStart + startOffset]._links.thumbnail.href);
+            updateFragment();
+        }
+
+        function moveWindowForward(event) {
+            if (event) {
+                event.preventDefault();
+            }
+            windowStart = windowStart + windowSize;
+            var slideIndex = Math.floor(windowStart / thumbDiff);
+            if (slideIndex + thumbsPerWindow > galleryThumbnails.length) {
+                slideIndex = Math.max(galleryThumbnails.length - thumbsPerWindow, 0);
+                windowStart = slideIndex * thumbDiff;
+            }
+            galleryThumbs.slideTo(slideIndex, 0);
+            updatePoster(gallery[windowStart + startOffset]._links.thumbnail.href);
+            updateFragment();
+        }
+
+        this.appendTo = function (target) {
+            container = target;
+
+            template = templateEngine.load('clipShareLoading', container);
+
+            if (resultEntry.tvChannel && resultEntry.timestampRef) {
+                clipService.previewTvClip(resultEntry.tvChannel.id, resultEntry.timestampRef,
+                    onPreviewLoaded, onPreviewLoadFailed);
+            } else if (resultEntry.advertisement && resultEntry.timeOffset) {
+                clipService.previewAdClip(resultEntry.advertisement.id, resultEntry.timeOffset,
+                    onPreviewLoaded, onPreviewLoadFailed);
+            }
+        };
+
+        this.dispose = function() {
+            if (galleryThumbs) {
+                galleryThumbs.destroy();
+                galleryThumbs = null;
+            }
+            if (rangePicker) {
+                rangePicker.dispose();
+                rangePickerSettings = null;
+                rangePicker = null;
+            }
+            if (player) {
+                player.remove();
+                player = null;
+            }
+            if (container) {
+                analytics.clipShareClosed();
+                container.innerHTML = '';
+                container = null;
+            }
+            gallery = galleryThumbnails = poster = template = null;
+            buttonBack = buttonPlay = buttonStop = buttonForward = buttonShare = null;
+        };
+    }
+
+    function SnapscreenShareButtonController(shareUrl, mediaInfo, analytics) {
+        function shareClip(event) {
+            if (event) {
+                event.preventDefault();
+            }
+            analytics.clipShareShare();
+            navigator.share({url: shareUrl}).then(analytics.clipShareShared, analytics.clipShareShareCancelled);
+        }
+
+        this.bindTo = function (target) {
+            var navigator = window.navigator;
+            if (navigator.share) {
+                target.addEventListener('click', shareClip);
+                return true;
+            } else {
+                return false;
+            }
+        };
+    }
+
+    function SnapscreenSnapViewController(logger, snapService, blobService, sportEventService, tvChannelService,
+                                          tsImageService, adImageService, clipService, analytics, options) {
+        var self = this, active = false, snapTimestamp = 0, snapComponent, searchResults, resultsSnapButton,
             videoDevices, zoom, video, viewFrame, checkCameraTimeout, autoSnapTimeout, autoSnapStatus, currentStream,
             storage, blocked, errorMessage, feedbackMessage, uiNavigator, uiBlocker, templateEngine,
             SNAP_MAX_DIMENSION = 1024,
             AUTOSNAP_MAX_DIMENSION = 512,
-            AUTOSNAP_DELAY_INITIAL = 1500,
-            AUTOSNAP_DELAY = 1000,
+            AUTOSNAP_DELAY_INITIAL = 3000,
+            AUTOSNAP_DELAY = 2000,
             AUTOSNAP_STATUS_NONE = 'NONE',
             AUTOSNAP_STATUS_WAITING = 'WAITING',
             AUTOSNAP_STATUS_IN_PROGRESS = 'IN_PROGRESS',
@@ -1891,6 +2912,17 @@
         this.createSnapButton = function () {
             return new SnapButton();
         };
+        this.createClipShareController = function(resultEntry) {
+            return new SnapscreenClipShareController(resultEntry, clipService, analytics,
+                templateEngine, uiNavigator, options.clipService);
+        };
+        this.showResults = function(target, results) {
+            searchResults.showResults(target, results);
+            resultsSnapButton.appendTo(snapComponent);
+        };
+        this.showClipShare = function (resultEntry) {
+            uiNavigator.navigateToClipShare(resultEntry);
+        };
 
         options = extend({
             "vibrate": false,
@@ -1916,8 +2948,7 @@
                 '</div>',
             "file": '<div class="tv-search-file"><input id="snapscreen:{suffix}:file" class="tv-search-input" type="file" accept="image/*;capture=camera"/>' +
                 '<label id="snapscreen:{suffix}:label" class="tv-search-label" for="snapscreen:{suffix}:file">' +
-                '<div><i class="icon-camera icon"></i><span>Click to access your camera!</span></div></label></div>' +
-                '<div class="tv-search-fallback-message">Please allow camera access to make Snapping work.</div>',
+                '<div><i class="icon-camera icon"></i><span>Click to access your camera!</span></div></label></div>',
             "button": '<input id="snapscreen:{suffix}:file" class="tv-search-input" type="file" accept="image/*;capture=camera"/>' +
                 '<label id="snapscreen:{suffix}:label" class="tv-search-button" for="snapscreen:{suffix}:file">' +
                 '<i class="icon-camera icon"></i>' +
@@ -1940,7 +2971,62 @@
                 '</label>' +
                 '</div>' +
                 '</div>',
-            "waiting": '<div class="tv-search-feedback">Getting access to the camera...</div>'
+            "waiting": '<div class="tv-search-feedback">Getting access to the camera...</div>',
+            "clipShareLoading": '<div class="snapscreen-modal-header">Loading clip data</div>' +
+                '<div class="snapscreen clipshare">' +
+                '<div class="snp-gallery snp-gallery-main snp-gallery-loading"><div class="swiper-lazy-preloader"></div></div>' +
+                '<div class="snp-gallery snp-gallery-thumb"></div>' +
+                '<div class="snp-trim-tools">' +
+                '<div class="snp-btn-back snp-btn-disabled"></div>' +
+                '<div class="snp-btn-play snp-btn-disabled"></div>' +
+                '<div class="snp-btn-forward snp-btn-disabled"></div>' +
+                '</div>' +
+                '<button class="snp-btn-share" type="submit" disabled><span>Loading...</span></button>' +
+                '</div>',
+            "clipShare": '<div class="snapscreen-modal-header">Create and share your clip</div>' +
+                '<div class="snapscreen clipshare">' +
+                '<div class="snp-gallery snp-gallery-main">' +
+                '<div id="snapscreen:{suffix}:player"></div>' +
+                '<div class="swiper-container"><div class="swiper-wrapper"><div class="swiper-slide">' +
+                '<img id="snapscreen:{suffix}:poster" class="swiper-lazy" />' +
+                '</div></div></div>' +
+                '</div>' +
+                '<div class="snp-gallery snp-gallery-thumb"><div class="swiper-container">' +
+                '<div id="snapscreen:{suffix}:thumb" class="swiper-wrapper"></div>' +
+                '<div id="snapscreen:{suffix}:range" class="snp-range-picker">' +
+                '<div class="snp-handle snp-low"></div><div class="snp-handle snp-high"></div>' +
+                '<div class="snp-video-position"></div></div>' +
+                '</div></div>' +
+                '<div class="snp-trim-tools">' +
+                '<div id="snapscreen:{suffix}:back" class="snp-btn-back"></div>' +
+                '<div id="snapscreen:{suffix}:play" class="snp-btn-play"></div>' +
+                '<div id="snapscreen:{suffix}:stop" class="snp-btn-stop"></div>' +
+                '<div id="snapscreen:{suffix}:forward" class="snp-btn-forward"></div>' +
+                '</div>' +
+                '<div id="snapscreen:{suffix}:feedback" class="snp-form-error"></div>' +
+                '<button id="snapscreen:{suffix}:share" class="snp-btn-share" type="button">' +
+                '<span>Share clip</span>'+
+                '<figure class="snp-btn-addon"><svg style="width:24px;height:24px" viewBox="0 0 24 24">'+
+                '<path d="M18 4l2 4h-3l-2-4h-2l2 4h-3l-2-4H8l2 4H7L5 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V4h-4z"></path>'+
+                '</svg></figure>'+
+                '</button>' +
+                '</div>',
+            "clipShareError": '<div class="snapscreen-modal-header">Clip is not available</div>' +
+                '<div class="snapscreen clipshare">' +
+                '<div class="snp-gallery snp-gallery-main">' +
+                '<p class="snp-gallery-no-clip">Sorry, but the clip that you requested is not available any more.</p></div>' +
+                '<div class="snp-gallery snp-gallery-thumb"></div>' +
+                '<div class="snp-trim-tools">' +
+                '<div class="snp-btn-back snp-btn-disabled"></div>' +
+                '<div class="snp-btn-play snp-btn-disabled"></div>' +
+                '<div class="snp-btn-forward snp-btn-disabled"></div>' +
+                '</div>' +
+                '<button class="snp-btn-share snp-btn-disabled" type="submit"><span>Share clip</span></button>' +
+                '</div>',
+            "galleryItem": '<div class="swiper-slide">' +
+                '<img data-src=":{href}:" alt="" class="swiper-lazy"/>' +
+                '<div class="swiper-lazy-preloader"></div>' +
+                '</div>'
         }, options.templates);
 
         snapComponent = document.createElement('div');
@@ -1954,7 +3040,10 @@
         videoDevices = new VideoDevicesManager();
         errorMessage = options.snapErrorMessage || new AutoHideMessage(snapComponent);
         feedbackMessage = new FeedbackMessage(snapComponent);
-        uiNavigator = new DefaultNavigationBehavior(this, snapComponent, templateEngine, options);
+        uiNavigator = new DefaultNavigationBehavior(this, snapComponent, snapService, templateEngine, options);
+        searchResults = new SnapscreenSearchResults(snapComponent, options.noEntryImage, uiNavigator,
+            sportEventService, templateEngine, tvChannelService, tsImageService, adImageService);
+        resultsSnapButton = new SnapButton();
         storage = (typeof Storage !== 'undefined') ? localStorage : {snapscreenTvSearchVisited: true};
 
         replaceBlocker();
@@ -1964,8 +3053,16 @@
     var logger = loggerFactory(),
         accessTokenHolder = accessTokenHolderFactory(logger),
         snapscreenApi = snapscreenApiFactory(logger, accessTokenHolder),
+        clipShareApi = clipShareApiFactory(accessTokenHolder),
+        webSearchService = webSearchServiceFactory(snapscreenApi),
         snapService = snapServiceFactory(logger, snapscreenApi),
         blobService = blobServiceFactory(logger),
+        httpBlobCache = httpBlobCacheFactory(),
+        tvChannelService = tvChannelServiceFactory(snapscreenApi, httpBlobCache),
+        sportEventService = sportEventServiceFactory(),
+        tsImageService = tsImageServiceFactory(snapscreenApi, httpBlobCache),
+        adImageService = adImageServiceFactory(snapscreenApi, httpBlobCache),
+        clipService = clipServiceFactory(clipShareApi),
         analytics = analyticsFactory();
 
     /**
@@ -1976,13 +3073,30 @@
     scope.SnapscreenKit = {
         "http": http,
         "api": snapscreenApi,
+        "clipShareApi": clipShareApi,
         "loggingHandler": logger.handler,
         "accessTokenHolder": accessTokenHolder,
+        "tvSnapViewController": function createSnapscreenTvSnapViewController(options) {
+            return new SnapscreenSnapViewController(logger, snapService.epg, blobService, sportEventService,
+                tvChannelService, tsImageService, adImageService, clipService, analytics, options);
+        },
         "sportSnapViewController": function createSnapscreenSportSnapViewController(options) {
-            return new SnapscreenSnapViewController(logger, snapService.sport, blobService, analytics, extend({
+            return new SnapscreenSnapViewController(logger, snapService.sport, blobService, sportEventService,
+                tvChannelService, tsImageService, adImageService, clipService, analytics, extend({
                     "cssClass": 'snapscreen snpbet',
                     "noEntryImage": '/images/bet/header-gradient.png'
                 }, options));
-        }
+        },
+        "adsSnapViewController": function createSnapscreenAdsSnapViewController(options) {
+            return new SnapscreenSnapViewController(logger, snapService.ads, blobService, sportEventService,
+                tvChannelService, tsImageService, adImageService, clipService, analytics, options);
+        },
+        "shareButtonController": function createSnapscreenShareButtonController(shareUrl, mediaInfo) {
+            return new SnapscreenShareButtonController(shareUrl, mediaInfo, analytics);
+        },
+        "webSearchService": webSearchService,
+        "tvChannelService": tvChannelService,
+        "sportEventService": sportEventService,
+        "clipService": clipService
     };
 }(window));
