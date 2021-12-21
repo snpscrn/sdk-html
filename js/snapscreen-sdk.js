@@ -690,12 +690,22 @@
     }
 
     function templateEngineFactory(templates) {
+        function escapeHtml(text) {
+            if (!text) {
+                return '';
+            }
+
+            var node = document.createElement('DIV');
+            node.appendChild(document.createTextNode(text));
+            return node.innerHTML;
+        }
+
         function renderTemplate(templateCode, model) {
             if (!model) {
                 model = {};
             }
             return templates[templateCode].replace(/:{(\w+)}:/g, function(match, name) {
-                return model[name];
+                return escapeHtml(model[name]);
             });
         }
 
@@ -1673,37 +1683,8 @@
             videoDevices.switchDevice(onStreamReady, onStreamBlocked);
         }
 
-        function needToShowTutorial() {
-            return !options.withoutTutorial && !storage.snapscreenTvSearchVisited;
-        }
-
-        function showShortTutorial() {
-            var tutorial, tutorialTemplate;
-
-            function close() {
-                snapComponent.removeChild(tutorial);
-            }
-
-            function onTutorialSnapClick(event) {
-                storage.snapscreenTvSearchVisited = true;
-                if (videoDevices.isSupported()) {
-                    event.preventDefault();
-                    close();
-                    checkCamera();
-                }
-            }
-
-            tutorial = document.createElement('div');
-            tutorialTemplate = templateEngine.load('tutorial', tutorial);
-            tutorialTemplate('label').addEventListener('click', onTutorialSnapClick);
-            snapComponent.appendChild(tutorial);
-        }
-
         function prepareView() {
-            if (needToShowTutorial()) {
-                switchFileMode();
-                showShortTutorial();
-            } else if (videoDevices.isSupported()) {
+            if (videoDevices.isSupported()) {
                 checkCamera();
             } else {
                 switchFileMode();
@@ -1751,7 +1732,6 @@
             "vibrate": false,
             "searchAds": false,
             "autoSnap": false,
-            "withoutTutorial": false,
             "cssClass": 'snapscreen',
             "noEntryImage": '/images/header-gradient.png'
         }, options);
@@ -1778,18 +1758,6 @@
                 '</div>',
             "results": '<div class="snapscreen-modal-header">Please choose the best matching result</div>' +
                 '<div class="collection with-header" id="snapscreen:{suffix}:collection"></div>',
-            "tutorial": '<div class="dialog dialog--open">' +
-                '<div class="dialog__overlay"></div>' +
-                '<div class="dialog__content">' +
-                '<label id="snapscreen:{suffix}:label" class="tutorial-label">' +
-                '<div class="tutorial-content">' +
-                '<h3 class="tutorial-title">Zoom and focus on your TV-screen.</h3>' +
-                '<div class="tutorial-picto"><img src="/images/tutorial.png" alt=""/></div>' +
-                '<button class="button button-cta" data-dialog-close="">Get started</button>' +
-                '</div>' +
-                '</label>' +
-                '</div>' +
-                '</div>',
             "waiting": '<div class="tv-search-feedback">Getting access to the camera...</div>',
             "sport-event-odds": '<div class="c-headline-container">' +
                 '<span class="c-headline-tournament">:{tournament}:</span>' +
